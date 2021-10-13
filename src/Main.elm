@@ -1,45 +1,152 @@
+-- stignore frontend for stignore-agent(s)
+--
+-- See https://github.com/dalmura/stignore-manager for more details
+--
 module Main exposing (..)
 
--- Press buttons to increment and decrement a counter.
---
--- Read how it works:
---   https://guide.elm-lang.org/architecture/buttons.html
---
-
 import Browser
-import Html exposing (Html, button, div, text)
-import Html.Events exposing (onClick)
+import Set exposing (Set)
+import Html exposing (..)
+import Html.Attributes exposing (..)
+import Html.Events exposing (..)
+import Http
+import Json.Decode exposing (Decoder, field, string, list, map2)
+
+
 
 -- MAIN
+
 main =
-  Browser.sandbox { init = init, update = update, view = view }
+  Browser.element
+    { init = init
+    , update = update
+    , subscriptions = subscriptions
+    , view = view
+    }
+
+
 
 -- MODEL
-type alias Model = Int
 
-init : Model
-init =
-  0
+type alias ContentType = String
+
+type alias AgentContentTypesResponse =
+  { name : String
+  , contentTypes : List ContentType
+  }
+
+type alias Agent =
+  { name : String
+  , host : String
+  , contentTypes : List ContentType
+  }
+
+type alias Model =
+  { agents : List Agent
+  , errors : List Http.Error
+  }
+
+
+initData : List Agent
+initData =
+  [ Agent "Agent 1" "localhost:8081" []
+  , Agent "Agent 2" "localhost:8082" []
+  ]
+
+
+
+init : () -> (Model, Cmd Msg)
+init _ =
+  ( Model initData []
+  , Cmd.batch (List.map getAgentContentTypes initData)
+  )
+
 
 -- UPDATE
-type Msg
-  = Increment
-  | Decrement
 
-update : Msg -> Model -> Model
+type Msg
+  = AddAgent Agent
+  | AgentContentTypes (Result Http.Error AgentContentTypesResponse)
+
+
+update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
-    Increment ->
-      model + 1
+    AddAgent agent ->
+      ({ model | agents = model.agents ++ [agent] }, getAgentContentTypes agent)
 
-    Decrement ->
-      model - 1
+    AgentContentTypes result ->
+      case result of
+        Ok agentContentTypes ->
+          ({model | agents = applyAgentContentTypesResponse agentContentTypes model.agents}, Cmd.none)
+
+        Err error ->
+          ({ model | errors = model.errors ++ [error] }, Cmd.none)
+
+
+applyAgentContentTypesResponse : AgentContentTypesResponse -> List Agent -> List Agent
+applyAgentContentTypesResponse response agents =
+  let
+    inspectAndSet agent =
+      if response.name == agent.name then
+        { agent | contentTypes = response.contentTypes }
+      else
+        agent
+  in
+    List.map inspectAndSet agents
+
+
+-- SUBSCRIPTIONS
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+  Sub.none
+
 
 -- VIEW
+
+extractContentTypes : Agent -> List ContentType
+extractContentTypes a = a.contentTypes
+
+getTotalContentTypes : List Agent -> Set ContentType
+getTotalContentTypes agents = Set.fromList (List.concatMap extractContentTypes agents)
+
+toTableHeader : Agent -> Html msg
+toTableHeader a = th [] [ text a.name ]
+
+viewContentTypes : Set ContentType -> List Agent -> Html div
+viewContentTypes totalContentTypes agents =
+  div []
+    [ table []
+      ([ thead []
+        ([ th [] [ text "Content Types" ] ]
+         ++ List.map toTableHeader agents
+        )
+      ])
+    ]
+
 view : Model -> Html Msg
 view model =
   div []
-    [ button [ onClick Decrement ] [ text "-" ]
-    , div [] [ text (String.fromInt model) ]
-    , button [ onClick Increment ] [ text "+" ]
+    [ h2 [] [ text "Agent Landing Page" ]
+    , viewContentTypes (getTotalContentTypes model.agents) model.agents
     ]
+
+
+-- HTTP
+
+getAgentContentTypes : Agent -> Cmd Msg
+getAgentContentTypes agent =
+  let
+    agent_url = "https://" ++ agent.host ++ "/api/v1/types"
+  in
+    Http.get
+      { url = agent_url
+      , expect = Http.expectJson AgentContentTypes agentContentTypesDecoder
+      }
+
+agentContentTypesDecoder : Decoder AgentContentTypesResponse
+agentContentTypesDecoder =
+  map2 AgentContentTypesResponse
+    (field "data" (field "name" string))
+    (field "data" (field "contentTypes" (Json.Decode.list Json.Decode.string)))
