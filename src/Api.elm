@@ -1,4 +1,4 @@
-port module Api exposing (Cred, addServerError, application, decodeErrors, delete, get, login, logout, post, put, register, settings, storeCredWith, username, viewerChanges)
+port module Api exposing (Cred, addServerError, application, decodeErrors, delete, get, login, logout, post, put, register, settings, storeCredWith, username, viewerChanges, discover)
 
 {-| This module is responsible for communicating to the stignore-agent API.
 
@@ -17,6 +17,9 @@ import Json.Encode as Encode
 import Url exposing (Url)
 import Username exposing (Username)
 
+
+import ContentTypes exposing (ContentTypes)
+import Agents exposing (Agent)
 
 
 -- CRED
@@ -250,6 +253,17 @@ decoderFromCred decoder =
         decoder
         credDecoder
 
+makeTuple : Agent -> ContentTypes -> (Agent, ContentTypes)
+makeTuple newAgent newContentTypes =
+    (newAgent, newContentTypes)
+
+discover : Maybe Cred -> Agent -> Http.Request (Agent, ContentTypes)
+discover maybeCred targetAgent =
+    Decode.map2
+        makeTuple
+        (Decode.succeed targetAgent)
+        (Decode.field "content_types" (Decode.list ContentTypes.decoder))
+            |> get (Endpoint.discover targetAgent) maybeCred
 
 
 -- ERRORS

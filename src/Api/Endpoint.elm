@@ -1,7 +1,7 @@
-module Api.Endpoint exposing (Endpoint, article, articles, comment, comments, favorite, feed, follow, login, profiles, request, tags, user, users, ctypes, listing, stignore, flush)
+module Api.Endpoint exposing (Endpoint, article, articles, comment, comments, favorite, feed, follow, login, profiles, request, tags, user, users, discover, listing, stignore, flush)
 
 import Agents exposing (Agent)
-import ContentType exposing (ContentType)
+import ContentTypes exposing (ContentType)
 
 import Article.Slug as Slug exposing (Slug)
 import CommentId exposing (CommentId)
@@ -72,24 +72,24 @@ agentUrl agent paths queryParams =
 -- AGENT ENDPOINTS
 
 
-ctypes : Agent -> Endpoint
-ctypes agent =
-    agentUrl agent [ "types" ] []
+discover : Agent -> Endpoint
+discover agent =
+    agentUrl agent [ "discover" ] []
 
 
 listing : Agent -> ContentType -> Endpoint
 listing agent ctype =
-    agentUrl agent [ ContentType.toString ctype, "listing" ] []
+    agentUrl agent [ ContentTypes.toString ctype, "listing" ] []
 
 
 stignore : Agent -> ContentType -> Endpoint
 stignore agent ctype =
-    agentUrl agent [ ContentType.toString ctype, "stignore" ] []
+    agentUrl agent [ ContentTypes.toString ctype, "stignore" ] []
 
 
 flush : Agent -> ContentType -> Endpoint
 flush agent ctype = 
-    agentUrl agent [ ContentType.toString ctype, "stignore", "flush" ] []
+    agentUrl agent [ ContentTypes.toString ctype, "stignore", "flush" ] []
 
 
 

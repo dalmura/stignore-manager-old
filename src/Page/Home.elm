@@ -24,6 +24,11 @@ import Url.Builder
 import Username exposing (Username)
 
 
+import Agents exposing (Agents, Agent)
+import ContentTypes exposing (ContentTypes, ContentType)
+import Dict exposing (Dict)
+
+
 
 -- MODEL
 
@@ -37,6 +42,7 @@ type alias Model =
     -- Loaded independently from server
     , tags : Status (List Tag)
     , feed : Status Feed.Model
+    , contentTypes : Dict String ContentTypes
     }
 
 
@@ -63,9 +69,13 @@ init session =
 
                 Nothing ->
                     GlobalFeed
+        agents =
+            Session.agents session
 
-        loadTags =
-            Http.toTask Tag.list
+        agentDiscover : Agent -> Cmd Msg
+        agentDiscover agent =
+            Api.discover (Session.cred session) agent
+                |> Http.send GotAgentDiscovery
     in
     ( { session = session
       , timeZone = Time.utc
@@ -73,15 +83,19 @@ init session =
       , feedPage = 1
       , tags = Loading
       , feed = Loading
+      , contentTypes = Dict.empty
       }
     , Cmd.batch
-        [ fetchFeed session feedTab 1
-            |> Task.attempt CompletedFeedLoad
-        , Tag.list
-            |> Http.send CompletedTagsLoad
-        , Task.perform GotTimeZone Time.here
-        , Task.perform (\_ -> PassedSlowLoadThreshold) Loading.slowThreshold
-        ]
+        (
+            [ fetchFeed session feedTab 1
+                |> Task.attempt CompletedFeedLoad
+            , Tag.list
+                |> Http.send CompletedTagsLoad
+            , Task.perform GotTimeZone Time.here
+            , Task.perform (\_ -> PassedSlowLoadThreshold) Loading.slowThreshold
+            ]
+            ++ (List.map agentDiscover agents)
+        )
     )
 
 
@@ -144,7 +158,12 @@ view model =
                             [ text "No agents sorry" ]
                           agents ->
                             [ text "lots of agents!" ]
-                    , div [ class "col-md-3" ] [ text "3 Wide" ]
+                    , div [ class "col-md-3" ] <|
+                        case (Dict.isEmpty model.contentTypes) of
+                            True ->
+                                [ text "Is Empty" ]
+                            False ->
+                                [ text "Is Not Empty" ]
                     ]
                 ]
             ]
@@ -232,6 +251,7 @@ type Msg
     | ClickedFeedPage Int
     | CompletedFeedLoad (Result Http.Error Feed.Model)
     | CompletedTagsLoad (Result Http.Error (List Tag))
+    | GotAgentDiscovery (Result Http.Error (Agent, ContentTypes))
     | GotTimeZone Time.Zone
     | GotFeedMsg Feed.Msg
     | GotSession Session
@@ -277,6 +297,25 @@ update msg model =
             ( { model | tags = Failed }
             , Log.error
             )
+
+        GotAgentDiscovery (Ok (agent, contentTypes)) ->
+            let
+                agentStr = Agents.pretty agent
+
+                maybeExisting = Dict.get agentStr model.contentTypes
+
+                newContentTypes =
+                    case maybeExisting of
+                        Just current ->
+                            Dict.insert agentStr (current ++ contentTypes) model.contentTypes
+
+                        Nothing -> 
+                            Dict.insert agentStr contentTypes model.contentTypes
+            in
+            ( { model | contentTypes = newContentTypes }, Cmd.none )
+
+        GotAgentDiscovery (Err error) ->
+            ( model, Cmd.none )
 
         GotFeedMsg subMsg ->
             case model.feed of

@@ -22,7 +22,6 @@ type alias Internals =
 type alias Agents = List Agent
 
 
-
 new : String -> String -> Agent
 new newName newHost =
     Agent (Internals newName newHost)
