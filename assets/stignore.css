@@ -1,0 +1,7 @@
+.ctype-table table, th, td {
+    border: 1px solid black;
+}
+
+.ctype-table th, td {
+    padding: 10px;
+}

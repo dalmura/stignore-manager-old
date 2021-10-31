@@ -27,6 +27,7 @@ import Username exposing (Username)
 import Agents exposing (Agents, Agent)
 import ContentTypes exposing (ContentTypes, ContentType)
 import Dict exposing (Dict)
+import Set exposing (Set)
 
 
 
@@ -110,64 +111,71 @@ view model =
         div [ class "home-page" ]
             [ div [ class "container page" ]
                 [ div [ class "row" ]
-                    [ div [ class "col-md-9" ] <|
-                        case model.feed of
-                            Loaded feed ->
-                                [ div [ class "feed-toggle" ] <|
-                                    List.concat
-                                        [ [ viewTabs
-                                                (Session.cred model.session)
-                                                model.feedTab
-                                          ]
-                                        , Feed.viewArticles model.timeZone feed
-                                            |> List.map (Html.map GotFeedMsg)
-                                        , [ Feed.viewPagination ClickedFeedPage model.feedPage feed ]
-                                        ]
-                                ]
-
-                            Loading ->
-                                []
-
-                            LoadingSlowly ->
-                                [ Loading.icon ]
-
-                            Failed ->
-                                [ Loading.error "feed" ]
-                    , div [ class "col-md-3" ] <|
-                        case model.tags of
-                            Loaded tags ->
-                                [ div [ class "sidebar" ] <|
-                                    [ p [] [ text "Popular Tags" ]
-                                    , viewTags tags
-                                    ]
-                                ]
-
-                            Loading ->
-                                []
-
-                            LoadingSlowly ->
-                                [ Loading.icon ]
-
-                            Failed ->
-                                [ Loading.error "tags" ]
-                    ]
-                , div [ class "row" ]
-                    [ div [ class "col-md-9" ] <|
-                        case (Session.agents model.session) of
-                          [] ->
-                            [ text "No agents sorry" ]
-                          agents ->
-                            [ text "lots of agents!" ]
-                    , div [ class "col-md-3" ] <|
+                    [ div [ class "col-md-12" ] <|
                         case (Dict.isEmpty model.contentTypes) of
                             True ->
-                                [ text "Is Empty" ]
+                                [ text "Please add some agents" ]
                             False ->
-                                [ text "Is Not Empty" ]
+                                agentContentTable (Session.agents model.session) model.contentTypes
                     ]
                 ]
             ]
     }
+
+
+agentContentTable : Agents -> Dict String ContentTypes -> List (Html Msg)
+agentContentTable agents contentTypes =
+    let
+        saveUnique : String -> ContentTypes -> Set String -> Set String
+        saveUnique _ ctypes accum =
+            Set.fromList (List.map ContentTypes.name ctypes)
+                |> Set.union accum
+
+        uniqueContentTypes = Dict.foldl saveUnique Set.empty contentTypes
+            |> Set.toList
+            |> List.sort
+            |> List.map ContentTypes.new
+
+        toTableHeader : Agent -> Html Msg
+        toTableHeader agent = th [] [ text (Agents.name agent) ]
+
+        agentHasContentType : Dict String ContentTypes -> ContentType -> String -> Html Msg
+        agentHasContentType lookup ctype key =
+            case (Dict.get key lookup) of
+                Just ctypes ->
+                    if List.member ctype ctypes then
+                        td [] [ text "yes" ]
+                    else
+                        td [] [ text "no" ]
+                Nothing ->
+                    td [] [ text "N/A" ]
+
+        toTableRow : Agents -> Dict String ContentTypes -> ContentType -> Html Msg
+        toTableRow rowAgents lookup ctype =
+            tr []
+            (
+                [td [] [ text (ContentTypes.name ctype) ]]
+                ++ (
+                    List.map Agents.pretty rowAgents
+                        |> List.map (agentHasContentType lookup ctype)
+                )
+            )
+    in
+    [ div []
+        [ table [ class "ctype-table" ]
+            (
+                [ thead []
+                    (
+                        [ th [] [ text "Content Types" ] ]
+                        ++ List.map toTableHeader agents
+                    )
+                ]
+                ++ List.map (toTableRow agents contentTypes) uniqueContentTypes
+            )
+        ]
+    ]
+
+
 
 
 
