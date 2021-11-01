@@ -116,12 +116,4 @@ fromViewer key maybeViewer =
             LoggedIn key viewerVal []
 
         Nothing ->
-            {-|
-            let
-                agent1 = Agents.new "Agent 1" "http://localhost:8081"
-                agent2 = Agents.new "Agent 2" "http://localhost:8082"
-                agent3 = Agents.new "Agent 3" "http://localhost:8083"
-            in
-            Guest key [agent1, agent2, agent3]
-            -}
             Guest key []
