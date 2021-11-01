@@ -84,7 +84,7 @@ view model =
 agentListingsTable : Agents -> Dict String Listing -> ContentType -> List (Html Msg)
 agentListingsTable agents listings ctype =
     let
-        saveUnique : String -> Listing -> Set (String, Int) -> Set (String, Int)
+        saveUnique : String -> Listing -> Set (String, Float) -> Set (String, Float)
         saveUnique _ listing accum =
             Set.fromList (List.map Listing.toTuple listing)
                 |> Set.union accum
@@ -113,7 +113,7 @@ agentListingsTable agents listings ctype =
             tr []
             (
                 [ td [] [ text (Listing.name item) ]
-                , td [] [ text (String.fromInt (Listing.size item)) ]
+                , td [] [ text (String.fromFloat (Listing.size item)) ]
                 ]
                 ++ (
                     List.map Agents.pretty rowAgents

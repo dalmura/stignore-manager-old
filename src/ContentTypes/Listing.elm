@@ -14,14 +14,14 @@ type alias Listing = List Item
 
 type alias Item =
     { name : String
-    , size_megabytes : Int
+    , size_megabytes : Float
     }
 
 
 
 -- INFO
 
-new : String -> Int -> Item
+new : String -> Float -> Item
 new newName newSize =
     Item newName newSize
 
@@ -29,21 +29,21 @@ name : Item -> String
 name item =
     item.name
 
-size : Item -> Int
+size : Item -> Float
 size item =
     item.size_megabytes
 
-toTuple : Item -> (String, Int)
+toTuple : Item -> (String, Float)
 toTuple item =
     (item.name, item.size_megabytes)
 
-fromTuple : (String, Int) -> Item
+fromTuple : (String, Float) -> Item
 fromTuple (newName, newSize) =
     Item newName newSize
 
 pretty : Item -> String
 pretty item =
-    item.name ++ " (" ++ String.fromInt item.size_megabytes ++ "MB)"
+    item.name ++ " (" ++ String.fromFloat item.size_megabytes ++ "MB)"
 
 toString : Listing -> String
 toString listing =
@@ -59,7 +59,7 @@ itemDecoder : Decoder Item
 itemDecoder =
     Decode.succeed Item
         |> required "name" Decode.string
-        |> required "size_megabytes" Decode.int
+        |> required "size_megabytes" Decode.float
 
 decoder : Decoder Listing
 decoder =
@@ -69,7 +69,7 @@ itemEncoder : Item -> Value
 itemEncoder item =
     Encode.object
         [ ( "name", Encode.string item.name )
-        , ( "size_megabytes", Encode.int item.size_megabytes )
+        , ( "size_megabytes", Encode.float item.size_megabytes )
         ]
 
 encode : Listing -> Value
