@@ -19,7 +19,7 @@ import Viewer exposing (Viewer)
 import Agents exposing (Agents, Agent)
 import ContentTypes exposing (ContentTypes, ContentType)
 import ContentTypes.Slug exposing (Slug)
-import ContentTypes.Listing as Listing exposing (Listing, Item)
+import ContentTypes.Listing as Listing exposing (Listing, KVListing, Item)
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -31,7 +31,7 @@ import Set exposing (Set)
 type alias Model =
     { session : Session
     , contentType : ContentType
-    , listings : Dict String Listing
+    , listings : Dict String KVListing
     }
 
 
@@ -81,43 +81,74 @@ view model =
     }
 
 
-agentListingsTable : Agents -> Dict String Listing -> ContentType -> List (Html Msg)
+agentListingsTable : Agents -> Dict String KVListing -> ContentType -> List (Html Msg)
 agentListingsTable agents listings ctype =
     let
-        saveUnique : String -> Listing -> Set (String, Float) -> Set (String, Float)
+        saveUnique : String -> KVListing -> Set String -> Set String
         saveUnique _ listing accum =
-            Set.fromList (List.map Listing.toTuple listing)
+            Dict.values listing
+                |> List.map Listing.name
+                |> Set.fromList
                 |> Set.union accum
 
-        uniqueItems = Dict.foldl saveUnique Set.empty listings
+        uniqueNames = Dict.foldl saveUnique Set.empty listings
             |> Set.toList
             |> List.sort
-            |> List.map Listing.fromTuple
 
         toTableHeader : Agent -> Html Msg
         toTableHeader agent = th [] [ text (Agents.name agent) ]
 
-        agentHasItem : Dict String Listing -> Listing.Item -> String -> Html Msg
-        agentHasItem lookup item key =
-            case (Dict.get key lookup) of
-                Just items ->
-                    if List.member item items then
-                        td [] [ text "yes" ]
-                    else
-                        td [] [ text "no" ]
+        agentHasItem : Dict String KVListing -> String -> String -> Html Msg
+        agentHasItem lookup itemName agentName =
+            case (Dict.get agentName lookup) of
+                Just kvlisting ->
+                    case (Dict.get itemName kvlisting) of
+                        Just item ->
+                            td [] [ text "yes" ]
+                        Nothing ->
+                            td [] [ text "no" ]
                 Nothing ->
                     td [] [ text "N/A" ]
 
-        toTableRow : Agents -> Dict String Listing -> Item -> Html Msg
-        toTableRow rowAgents lookup item =
+        getSizeReport : Agents -> Dict String KVListing -> String -> Html Msg
+        getSizeReport rowAgents lookup name =
+            let
+                extractSizes : Dict String KVListing -> String -> String -> Maybe Float
+                extractSizes sizeLookup sizeName agentName =
+                    case (Dict.get agentName sizeLookup) of
+                        Just kvlisting ->
+                            case (Dict.get sizeName kvlisting) of
+                                Just item ->
+                                    Just item.size_megabytes
+                                Nothing ->
+                                    Nothing
+                        Nothing ->
+                            Nothing
+
+                sizes = (List.map Agents.pretty rowAgents)
+                    |> List.filterMap (extractSizes lookup name)
+
+                maxSize = Maybe.withDefault 0 (List.maximum sizes)
+
+                isMaxSize : Float -> Float -> Bool
+                isMaxSize a b = a == b
+            in
+                case (List.all (isMaxSize maxSize) sizes) of
+                    True ->
+                        text ((String.fromFloat maxSize) ++ " MB")
+                    False ->
+                        text ((String.fromFloat maxSize) ++ " MB (conflict)")
+
+        toTableRow : Agents -> Dict String KVListing -> String -> Html Msg
+        toTableRow rowAgents lookup name =
             tr []
             (
-                [ td [] [ text (Listing.name item) ]
-                , td [] [ text (String.fromFloat (Listing.size item)) ]
+                [ td [] [ text name ]
+                , td [] [ (getSizeReport rowAgents lookup name) ]
                 ]
                 ++ (
                     List.map Agents.pretty rowAgents
-                        |> List.map (agentHasItem lookup item)
+                        |> List.map (agentHasItem lookup name)
                 )
             )
     in
@@ -132,7 +163,7 @@ agentListingsTable agents listings ctype =
                         ++ List.map toTableHeader agents
                     )
                 ]
-                ++ List.map (toTableRow agents listings) uniqueItems
+                ++ List.map (toTableRow agents listings) uniqueNames
             )
         ]
     ]
@@ -152,17 +183,18 @@ update msg model =
     case msg of
         GotAgentListing (Ok (agent, listing)) ->
             let
-                agentStr = Agents.pretty agent
+                kvlisting = Listing.toKV listing
 
+                agentStr = Agents.pretty agent
                 maybeExisting = Dict.get agentStr model.listings
 
                 newListings =
                     case maybeExisting of
                         Just current ->
-                            Dict.insert agentStr (current ++ listing) model.listings
+                            Dict.insert agentStr (Dict.union kvlisting current) model.listings
 
                         Nothing ->
-                            Dict.insert agentStr listing model.listings
+                            Dict.insert agentStr kvlisting model.listings
             in
             ( { model | listings = newListings }, Cmd.none )
 
