@@ -8,6 +8,7 @@ import Profile exposing (Profile)
 import Url exposing (Url)
 import Url.Parser as Parser exposing ((</>), Parser, oneOf, s, string)
 import Username exposing (Username)
+import ContentTypes.Slug as CTSlug
 
 
 
@@ -26,6 +27,7 @@ type Route
     | Profile Username
     | NewArticle
     | EditArticle Slug
+    | CTListing CTSlug.Slug
 
 
 parser : Parser (Route -> a) a
@@ -41,6 +43,7 @@ parser =
         , Parser.map Article (s "article" </> Slug.urlParser)
         , Parser.map NewArticle (s "editor")
         , Parser.map EditArticle (s "editor" </> Slug.urlParser)
+        , Parser.map CTListing (s "listing" </> CTSlug.urlParser)
         ]
 
 
@@ -111,3 +114,6 @@ routeToPieces page =
 
         EditArticle slug ->
             [ "editor", Slug.toString slug ]
+
+        CTListing slug ->
+            [ "listing", CTSlug.toString slug ]

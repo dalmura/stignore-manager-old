@@ -18,6 +18,7 @@ import Page.NotFound as NotFound
 import Page.Profile as Profile
 import Page.Register as Register
 import Page.Settings as Settings
+import Page.CTListing as CTListing
 import Route exposing (Route)
 import Session exposing (Session)
 import Task
@@ -46,6 +47,7 @@ type Model
     | Profile Username Profile.Model
     | Article Article.Model
     | Editor (Maybe Slug) Editor.Model
+    | CTListing CTListing.Model
 
 
 
@@ -111,6 +113,9 @@ view model =
         Editor (Just _) editor ->
             viewPage Page.Other GotEditorMsg (Editor.view editor)
 
+        CTListing ctlisting ->
+            viewPage Page.CTListing GotCTListingMsg (CTListing.view ctlisting)
+
 
 
 -- UPDATE
@@ -127,6 +132,7 @@ type Msg
     | GotProfileMsg Profile.Msg
     | GotArticleMsg Article.Msg
     | GotEditorMsg Editor.Msg
+    | GotCTListingMsg CTListing.Msg
     | GotSession Session
 
 
@@ -162,6 +168,9 @@ toSession page =
 
         Editor _ editor ->
             Editor.toSession editor
+
+        CTListing ctlisting ->
+            CTListing.toSession ctlisting
 
 
 changeRouteTo : Maybe Route -> Model -> ( Model, Cmd Msg )
@@ -215,6 +224,10 @@ changeRouteTo maybeRoute model =
         Just (Route.Article slug) ->
             Article.init session slug
                 |> updateWith Article GotArticleMsg model
+
+        Just (Route.CTListing slug) ->
+            CTListing.init session slug
+                |> updateWith CTListing GotCTListingMsg model
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -280,6 +293,10 @@ update msg model =
             Editor.update subMsg editor
                 |> updateWith (Editor slug) GotEditorMsg model
 
+        ( GotCTListingMsg subMsg, CTListing ctlisting ) ->
+            CTListing.update subMsg ctlisting
+                |> updateWith CTListing GotCTListingMsg model
+
         ( GotSession session, Redirect _ ) ->
             ( Redirect session
             , Route.replaceUrl (Session.navKey session) Route.Home
@@ -333,6 +350,9 @@ subscriptions model =
 
         Editor _ editor ->
             Sub.map GotEditorMsg (Editor.subscriptions editor)
+
+        CTListing ctlisting ->
+            Sub.map GotCTListingMsg (CTListing.subscriptions ctlisting)
 
 
 

@@ -1,6 +1,8 @@
-module ContentTypes exposing (ContentType(..), ContentTypes, new, name, pretty, decoder, encode, toString)
+module ContentTypes exposing (ContentType(..), ContentTypes, new, fromSlug, name, pretty, decoder, encode, toString, slug)
 
 import Http
+
+import ContentTypes.Slug as Slug exposing (Slug)
 
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (required, hardcoded)
@@ -28,6 +30,11 @@ new newName =
     ContentType (Internals newName)
 
 
+fromSlug : Slug -> ContentType
+fromSlug theSlug =
+    ContentType (Internals (Slug.toString theSlug))
+
+
 -- INFO
 
 
@@ -44,6 +51,11 @@ pretty (ContentType info) =
 toString : ContentType -> String
 toString contentType =
     pretty contentType
+
+
+slug : ContentType -> Slug
+slug (ContentType info) =
+    Slug.Slug info.name
 
 
 

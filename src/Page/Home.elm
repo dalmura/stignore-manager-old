@@ -17,6 +17,7 @@ import Loading
 import Log
 import Page
 import PaginatedList exposing (PaginatedList)
+import Route exposing (Route)
 import Session exposing (Session)
 import Task exposing (Task)
 import Time
@@ -154,7 +155,11 @@ agentContentTable agents contentTypes =
         toTableRow rowAgents lookup ctype =
             tr []
             (
-                [td [] [ text (ContentTypes.name ctype) ]]
+                [td []
+                    [ a [ class "ctype", Route.href (Route.CTListing (ContentTypes.slug ctype)) ]
+                        [ text (ContentTypes.name ctype) ]
+                    ]
+                ]
                 ++ (
                     List.map Agents.pretty rowAgents
                         |> List.map (agentHasContentType lookup ctype)

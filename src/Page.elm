@@ -29,6 +29,7 @@ type Page
     | Settings
     | Profile Username
     | NewArticle
+    | CTListing
 
 
 {-| Take a page's Html and frames it with a header and footer.
