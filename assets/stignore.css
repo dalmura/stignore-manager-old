@@ -1,3 +1,11 @@
+.ctlisting-yes {
+    background-color: lightgreen;
+}
+
+.ctlisting-no {
+    background-color: palevioletred;
+}
+
 .ctype-table table, th, td {
     border: 1px solid black;
 }
@@ -6,10 +14,10 @@
     padding: 10px;
 }
 
-.listing-table table, th, td {
+.ctlisting-table table, th, td {
     border: 1px solid black;
 }
 
-.listing-table th, td {
+.ctlisting-table th, td {
     padding: 10px;
 }

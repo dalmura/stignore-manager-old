@@ -106,9 +106,9 @@ agentListingsTable agents listings ctype =
                 Just kvlisting ->
                     case (Dict.get itemName kvlisting) of
                         Just item ->
-                            td [] [ text "yes" ]
+                            td [ class "ctlisting-yes" ] [ text "yes" ]
                         Nothing ->
-                            td [] [ text "no" ]
+                            td [ class "ctlisting-no"] [ text "no" ]
                 Nothing ->
                     td [] [ text "N/A" ]
 
@@ -162,7 +162,7 @@ agentListingsTable agents listings ctype =
             )
     in
     [ div []
-        [ table [ class "listing-table" ]
+        [ table [ class "ctlisting-table" ]
             (
                 [ thead []
                     (
