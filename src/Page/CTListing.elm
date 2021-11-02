@@ -27,7 +27,14 @@ import Set exposing (Set)
 import Round
 
 
+
 -- MODEL
+
+
+type AgentItemStatus
+    = Exists Float
+    | MissingItem
+    | MissingAgent
 
 
 type alias Model =
@@ -100,65 +107,64 @@ agentListingsTable agents listings ctype =
         toTableHeader : Agent -> Html Msg
         toTableHeader agent = th [] [ text (Agents.name agent) ]
 
-        agentHasItem : Dict String KVListing -> String -> String -> Html Msg
+        agentHasItem : Dict String KVListing -> String -> String -> AgentItemStatus
         agentHasItem lookup itemName agentName =
             case (Dict.get agentName lookup) of
                 Just kvlisting ->
                     case (Dict.get itemName kvlisting) of
                         Just item ->
-                            td [ class "ctlisting-yes" ] [ text "yes" ]
+                            Exists (Listing.size item)
                         Nothing ->
-                            td [ class "ctlisting-no"] [ text "no" ]
+                            MissingItem
                 Nothing ->
-                    td [] [ text "N/A" ]
-
-        toHumanSize : Float -> String
-        toHumanSize sizeInMB =
-            if sizeInMB > 1000 then
-                (Round.round 2 (sizeInMB / 1000)) ++ " GB"
-            else
-                (Round.round 2 (sizeInMB)) ++ " MB"
-
-        getSizeReport : Agents -> Dict String KVListing -> String -> String
-        getSizeReport rowAgents lookup name =
-            let
-                extractSizes : Dict String KVListing -> String -> String -> Maybe Float
-                extractSizes sizeLookup sizeName agentName =
-                    case (Dict.get agentName sizeLookup) of
-                        Just kvlisting ->
-                            case (Dict.get sizeName kvlisting) of
-                                Just item ->
-                                    Just item.size_megabytes
-                                Nothing ->
-                                    Nothing
-                        Nothing ->
-                            Nothing
-
-                sizes = (List.map Agents.pretty rowAgents)
-                    |> List.filterMap (extractSizes lookup name)
-
-                maxSize = Maybe.withDefault 0 (List.maximum sizes)
-
-                isMaxSize : Float -> Float -> Bool
-                isMaxSize a b = a == b
-            in
-                case (List.all (isMaxSize maxSize) sizes) of
-                    True ->
-                        toHumanSize maxSize
-                    False ->
-                        (toHumanSize maxSize) ++ " (conflict)"
+                    MissingAgent
 
         toTableRow : Agents -> Dict String KVListing -> String -> Html Msg
-        toTableRow rowAgents lookup name =
+        toTableRow rowAgents lookup itemName =
+            let
+                agentKeys = List.map Agents.pretty rowAgents
+
+                agentItemRow = List.map (agentHasItem lookup itemName) agentKeys
+
+                itemSize : AgentItemStatus -> Maybe Float
+                itemSize itemStatus =
+                    case itemStatus of
+                        Exists size -> Just size
+                        _ -> Nothing
+
+                rowSizes = List.filterMap itemSize agentItemRow
+
+                replicationCount = List.length rowSizes
+                replicationCountMin = 2
+
+                maxSize = Maybe.withDefault 0 (List.maximum rowSizes)
+                maxSizeHuman = toHumanSize maxSize
+
+                itemNameCell =
+                    if replicationCount < replicationCountMin then
+                        td [ class "ctlisting-low-replication" ] [ text itemName ]
+                    else
+                        td [] [ text itemName ]
+
+                itemStatusToCell : Float -> AgentItemStatus -> Html Msg
+                itemStatusToCell targetSize itemStatus =
+                    case itemStatus of
+                        Exists size ->
+                            if size == targetSize then
+                                td [ class "ctlisting-yes" ] [ text "yes" ]
+                            else
+                                td [ class "ctlisting-yes" ] [ text "yes (size conflict)" ]
+                        MissingItem ->
+                            td [ class "ctlisting-no"] [ text "no" ]
+                        MissingAgent ->
+                            td [] [ text "N/A" ]
+            in
             tr []
             (
-                [ td [] [ text name ]
-                , td [] [ text (getSizeReport rowAgents lookup name) ]
+                [ itemNameCell
+                , td [] [ text maxSizeHuman ]
                 ]
-                ++ (
-                    List.map Agents.pretty rowAgents
-                        |> List.map (agentHasItem lookup name)
-                )
+                ++ List.map (itemStatusToCell maxSize) agentItemRow
             )
     in
     [ div []
@@ -177,6 +183,13 @@ agentListingsTable agents listings ctype =
         ]
     ]
 
+
+toHumanSize : Float -> String
+toHumanSize sizeInMB =
+    if sizeInMB > 1000 then
+        (Round.round 2 (sizeInMB / 1000)) ++ " GB"
+    else
+        (Round.round 2 (sizeInMB)) ++ " MB"
 
 
 -- UPDATE
