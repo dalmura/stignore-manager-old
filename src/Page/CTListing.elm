@@ -24,6 +24,8 @@ import ContentTypes.Listing as Listing exposing (Listing, KVListing, Item)
 import Dict exposing (Dict)
 import Set exposing (Set)
 
+import Round
+
 
 -- MODEL
 
@@ -110,7 +112,14 @@ agentListingsTable agents listings ctype =
                 Nothing ->
                     td [] [ text "N/A" ]
 
-        getSizeReport : Agents -> Dict String KVListing -> String -> Html Msg
+        toHumanSize : Float -> String
+        toHumanSize sizeInMB =
+            if sizeInMB > 1000 then
+                (Round.round 2 (sizeInMB / 1000)) ++ " GB"
+            else
+                (Round.round 2 (sizeInMB)) ++ " MB"
+
+        getSizeReport : Agents -> Dict String KVListing -> String -> String
         getSizeReport rowAgents lookup name =
             let
                 extractSizes : Dict String KVListing -> String -> String -> Maybe Float
@@ -135,16 +144,16 @@ agentListingsTable agents listings ctype =
             in
                 case (List.all (isMaxSize maxSize) sizes) of
                     True ->
-                        text ((String.fromFloat maxSize) ++ " MB")
+                        toHumanSize maxSize
                     False ->
-                        text ((String.fromFloat maxSize) ++ " MB (conflict)")
+                        (toHumanSize maxSize) ++ " (conflict)"
 
         toTableRow : Agents -> Dict String KVListing -> String -> Html Msg
         toTableRow rowAgents lookup name =
             tr []
             (
                 [ td [] [ text name ]
-                , td [] [ (getSizeReport rowAgents lookup name) ]
+                , td [] [ text (getSizeReport rowAgents lookup name) ]
                 ]
                 ++ (
                     List.map Agents.pretty rowAgents
