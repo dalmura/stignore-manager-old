@@ -19,7 +19,8 @@ import Viewer exposing (Viewer)
 import Agents exposing (Agents, Agent)
 import ContentTypes exposing (ContentTypes, ContentType)
 import ContentTypes.Slug exposing (Slug)
-import ContentTypes.Listing as Listing exposing (Listing, KVListing, Item)
+import ContentTypes.Listing as CTListing
+import STIgnore.Listing as STIListing
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -33,6 +34,7 @@ import Round
 
 type AgentItemStatus
     = Exists Float
+    | IgnoredItem
     | MissingItem
     | MissingAgent
 
@@ -40,7 +42,8 @@ type AgentItemStatus
 type alias Model =
     { session : Session
     , contentType : ContentType
-    , listings : Dict String KVListing
+    , ctListings : Dict String CTListing.KVListing
+    , stiListings : Dict String STIListing.KVListing
     }
 
 
@@ -54,16 +57,26 @@ init session slug =
         contentType =
             ContentTypes.fromSlug slug
 
-        agentListing : ContentType -> Agent -> Cmd Msg
-        agentListing ctype agent =
-            Api.listing (Session.cred session) agent ctype
-                |> Http.send GotAgentListing
+        agentCTListing : ContentType -> Agent -> Cmd Msg
+        agentCTListing ctype agent =
+            Api.ctListing (Session.cred session) agent ctype
+                |> Http.send GotAgentCTListing
+
+        agentSTIListing : ContentType -> Agent -> Cmd Msg
+        agentSTIListing ctype agent =
+            Api.stiListing (Session.cred session) agent ctype
+                |> Http.send GotAgentSTIListing
     in
     ( { session = session
       , contentType = contentType
-      , listings = Dict.empty
+      , ctListings = Dict.empty
+      , stiListings = Dict.empty
       }
-    , Cmd.batch (List.map (agentListing contentType) agents)
+    , Cmd.batch (
+        (List.map (agentCTListing contentType) agents)
+        ++
+        (List.map (agentSTIListing contentType) agents)
+      )
     )
 
 
@@ -79,52 +92,60 @@ view model =
             [ div [ class "container page" ]
                 [ div [ class "row" ]
                     [ div [ class "col-md-12" ] <|
-                        case (Dict.isEmpty model.listings) of
+                        case (Dict.isEmpty model.ctListings) of
                             True ->
                                 [ text "No Agents had this Content Type?" ]
                             False ->
-                                agentListingsTable (Session.agents model.session) model.listings model.contentType
+                                agentListingsTable (Session.agents model.session) model.ctListings model.stiListings model.contentType
                     ]
                 ]
             ]
     }
 
 
-agentListingsTable : Agents -> Dict String KVListing -> ContentType -> List (Html Msg)
-agentListingsTable agents listings ctype =
+agentListingsTable : Agents -> Dict String CTListing.KVListing -> Dict String STIListing.KVListing -> ContentType -> List (Html Msg)
+agentListingsTable agents ctListings stiListings ctype =
     let
-        saveUnique : String -> KVListing -> Set String -> Set String
+        saveUnique : String -> CTListing.KVListing -> Set String -> Set String
         saveUnique _ listing accum =
             Dict.values listing
-                |> List.map Listing.name
+                |> List.map CTListing.name
                 |> Set.fromList
                 |> Set.union accum
 
-        uniqueNames = Dict.foldl saveUnique Set.empty listings
+        uniqueNames = Dict.foldl saveUnique Set.empty ctListings
             |> Set.toList
             |> List.sort
 
         toTableHeader : Agent -> Html Msg
         toTableHeader agent = th [] [ text (Agents.name agent) ]
 
-        agentHasItem : Dict String KVListing -> String -> String -> AgentItemStatus
-        agentHasItem lookup itemName agentName =
-            case (Dict.get agentName lookup) of
-                Just kvlisting ->
-                    case (Dict.get itemName kvlisting) of
+        agentHasItem : Dict String CTListing.KVListing -> Dict String STIListing.KVListing -> String -> String -> AgentItemStatus
+        agentHasItem ctLookup stiLookup itemName agentName =
+            case (Dict.get agentName ctLookup) of
+                Just ctListing ->
+                    case (Dict.get itemName ctListing) of
                         Just item ->
-                            Exists (Listing.size item)
+                            Exists (CTListing.size item)
                         Nothing ->
-                            MissingItem
+                            case (Dict.get agentName stiLookup) of
+                                Just stiListing ->
+                                    case (Dict.get itemName stiListing) of
+                                        Just item ->
+                                            IgnoredItem
+                                        Nothing ->
+                                            MissingItem
+                                Nothing ->
+                                    MissingItem
                 Nothing ->
                     MissingAgent
 
-        toTableRow : Agents -> Dict String KVListing -> String -> Html Msg
-        toTableRow rowAgents lookup itemName =
+        toTableRow : Agents -> Dict String CTListing.KVListing -> Dict String STIListing.KVListing -> String -> Html Msg
+        toTableRow rowAgents ctLookup stiLookup itemName =
             let
                 agentKeys = List.map Agents.pretty rowAgents
 
-                agentItemRow = List.map (agentHasItem lookup itemName) agentKeys
+                agentItemRow = List.map (agentHasItem ctLookup stiLookup itemName) agentKeys
 
                 itemSize : AgentItemStatus -> Maybe Float
                 itemSize itemStatus =
@@ -154,6 +175,8 @@ agentListingsTable agents listings ctype =
                                 td [ class "ctlisting-yes" ] [ text "yes" ]
                             else
                                 td [ class "ctlisting-yes" ] [ text "yes (size conflict)" ]
+                        IgnoredItem ->
+                            td [ class "ctlisting-ignored" ] [ text "ignored" ]
                         MissingItem ->
                             td [ class "ctlisting-no"] [ text "no" ]
                         MissingAgent ->
@@ -178,7 +201,7 @@ agentListingsTable agents listings ctype =
                         ++ List.map toTableHeader agents
                     )
                 ]
-                ++ List.map (toTableRow agents listings) uniqueNames
+                ++ List.map (toTableRow agents ctListings stiListings) uniqueNames
             )
         ]
     ]
@@ -196,31 +219,52 @@ toHumanSize sizeInMB =
 
 
 type Msg
-    = GotAgentListing (Result Http.Error (Agent, Listing))
+    = GotAgentCTListing (Result Http.Error (Agent, CTListing.Listing))
+    | GotAgentSTIListing (Result Http.Error (Agent, STIListing.Listing))
     | GotSession Session
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        GotAgentListing (Ok (agent, listing)) ->
+        GotAgentCTListing (Ok (agent, listing)) ->
             let
-                kvlisting = Listing.toKV listing
+                kvlisting = CTListing.toKV listing
 
                 agentStr = Agents.pretty agent
-                maybeExisting = Dict.get agentStr model.listings
+                maybeExisting = Dict.get agentStr model.ctListings
 
                 newListings =
                     case maybeExisting of
                         Just current ->
-                            Dict.insert agentStr (Dict.union kvlisting current) model.listings
+                            Dict.insert agentStr (Dict.union kvlisting current) model.ctListings
 
                         Nothing ->
-                            Dict.insert agentStr kvlisting model.listings
+                            Dict.insert agentStr kvlisting model.ctListings
             in
-            ( { model | listings = newListings }, Cmd.none )
+            ( { model | ctListings = newListings }, Cmd.none )
 
-        GotAgentListing (Err error) ->
+        GotAgentCTListing (Err error) ->
+            ( model, Cmd.none )
+
+        GotAgentSTIListing (Ok (agent, listing)) ->
+            let
+                kvlisting = STIListing.toKV listing
+
+                agentStr = Agents.pretty agent
+                maybeExisting = Dict.get agentStr model.stiListings
+
+                newListings =
+                    case maybeExisting of
+                        Just current ->
+                            Dict.insert agentStr (Dict.union kvlisting current) model.stiListings
+
+                        Nothing ->
+                            Dict.insert agentStr kvlisting model.stiListings
+            in
+            ( { model | stiListings = newListings }, Cmd.none )
+
+        GotAgentSTIListing (Err error) ->
             ( model, Cmd.none )
 
         GotSession session ->

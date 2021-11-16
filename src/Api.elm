@@ -1,4 +1,4 @@
-port module Api exposing (Cred, addServerError, application, decodeErrors, delete, get, login, logout, post, put, register, settings, storeCredWith, username, viewerChanges, discover, listing)
+port module Api exposing (Cred, addServerError, application, decodeErrors, delete, get, login, logout, post, put, register, settings, storeCredWith, username, viewerChanges, discover, ctListing, stiListing)
 
 {-| This module is responsible for communicating to the stignore-agent API.
 
@@ -19,7 +19,8 @@ import Username exposing (Username)
 
 
 import ContentTypes exposing (ContentTypes, ContentType)
-import ContentTypes.Listing as Listing exposing (Listing)
+import ContentTypes.Listing as CTListing
+import STIgnore.Listing as STIListing
 import Agents exposing (Agent)
 
 
@@ -265,13 +266,23 @@ discover maybeCred targetAgent =
         (Decode.field "content_types" (Decode.list ContentTypes.decoder))
             |> get (Endpoint.discover targetAgent) maybeCred
 
-listing : Maybe Cred -> Agent -> ContentType -> Http.Request (Agent, Listing)
-listing maybeCred targetAgent contentType =
+
+ctListing : Maybe Cred -> Agent -> ContentType -> Http.Request (Agent, CTListing.Listing)
+ctListing maybeCred targetAgent contentType =
     Decode.map2
         makeTuple
         (Decode.succeed targetAgent)
-        (Decode.field "folders" Listing.decoder)
+        (Decode.field "folders" CTListing.decoder)
             |> get (Endpoint.listing targetAgent contentType) maybeCred
+
+
+stiListing : Maybe Cred -> Agent -> ContentType -> Http.Request (Agent, STIListing.Listing)
+stiListing maybeCred targetAgent contentType =
+    Decode.map2
+        makeTuple
+        (Decode.succeed targetAgent)
+        (Decode.field "entries" STIListing.decoder)
+            |> get (Endpoint.stignore targetAgent contentType) maybeCred
 
 
 -- ERRORS

@@ -2,7 +2,15 @@
     background-color: lightgreen;
 }
 
+.ctlisting-ignored {
+    background-color: orange;
+}
+
 .ctlisting-no {
+    background-color: palevioletred;
+}
+
+.ctlisting-low-replication {
     background-color: palevioletred;
 }
 
