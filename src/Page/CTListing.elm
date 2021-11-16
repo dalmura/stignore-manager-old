@@ -103,6 +103,49 @@ view model =
     }
 
 
+itemStatusToCell : Float -> AgentItemStatus -> Html Msg
+itemStatusToCell targetSize itemStatus =
+    case itemStatus of
+        Exists size ->
+            if size == targetSize then
+                td [ class "ctlisting-yes" ] [ text "yes" ]
+            else
+                td [ class "ctlisting-yes" ] [ text "yes (size conflict)" ]
+        IgnoredItem ->
+            td [ class "ctlisting-ignored" ] [ text "ignored" ]
+        MissingItem ->
+            td [ class "ctlisting-no"] [ text "no" ]
+        MissingAgent ->
+            td [] [ text "N/A" ]
+
+
+itemStatusSize : AgentItemStatus -> Maybe Float
+itemStatusSize itemStatus =
+    case itemStatus of
+        Exists size -> Just size
+        _ -> Nothing
+
+
+agentHasItem : Dict String CTListing.KVListing -> Dict String STIListing.KVListing -> String -> String -> AgentItemStatus
+agentHasItem ctLookup stiLookup itemName agentName =
+    case (Dict.get agentName ctLookup) of
+        Just ctListing ->
+            case (Dict.get itemName ctListing) of
+                Just item ->
+                    Exists (CTListing.size item)
+                Nothing ->
+                    case (Dict.get agentName stiLookup) of
+                        Just stiListing ->
+                            case (Dict.get itemName stiListing) of
+                                Just item ->
+                                    IgnoredItem
+                                Nothing ->
+                                    MissingItem
+                        Nothing ->
+                            MissingItem
+        Nothing ->
+            MissingAgent
+
 agentListingsTable : Agents -> Dict String CTListing.KVListing -> Dict String STIListing.KVListing -> ContentType -> List (Html Msg)
 agentListingsTable agents ctListings stiListings ctype =
     let
@@ -120,40 +163,12 @@ agentListingsTable agents ctListings stiListings ctype =
         toTableHeader : Agent -> Html Msg
         toTableHeader agent = th [] [ text (Agents.name agent) ]
 
-        agentHasItem : Dict String CTListing.KVListing -> Dict String STIListing.KVListing -> String -> String -> AgentItemStatus
-        agentHasItem ctLookup stiLookup itemName agentName =
-            case (Dict.get agentName ctLookup) of
-                Just ctListing ->
-                    case (Dict.get itemName ctListing) of
-                        Just item ->
-                            Exists (CTListing.size item)
-                        Nothing ->
-                            case (Dict.get agentName stiLookup) of
-                                Just stiListing ->
-                                    case (Dict.get itemName stiListing) of
-                                        Just item ->
-                                            IgnoredItem
-                                        Nothing ->
-                                            MissingItem
-                                Nothing ->
-                                    MissingItem
-                Nothing ->
-                    MissingAgent
-
         toTableRow : Agents -> Dict String CTListing.KVListing -> Dict String STIListing.KVListing -> String -> Html Msg
         toTableRow rowAgents ctLookup stiLookup itemName =
             let
                 agentKeys = List.map Agents.pretty rowAgents
-
                 agentItemRow = List.map (agentHasItem ctLookup stiLookup itemName) agentKeys
-
-                itemSize : AgentItemStatus -> Maybe Float
-                itemSize itemStatus =
-                    case itemStatus of
-                        Exists size -> Just size
-                        _ -> Nothing
-
-                rowSizes = List.filterMap itemSize agentItemRow
+                rowSizes = List.filterMap itemStatusSize agentItemRow
 
                 replicationCount = List.length rowSizes
                 replicationCountMin = 2
@@ -166,21 +181,6 @@ agentListingsTable agents ctListings stiListings ctype =
                         td [ class "ctlisting-low-replication" ] [ text itemName ]
                     else
                         td [] [ text itemName ]
-
-                itemStatusToCell : Float -> AgentItemStatus -> Html Msg
-                itemStatusToCell targetSize itemStatus =
-                    case itemStatus of
-                        Exists size ->
-                            if size == targetSize then
-                                td [ class "ctlisting-yes" ] [ text "yes" ]
-                            else
-                                td [ class "ctlisting-yes" ] [ text "yes (size conflict)" ]
-                        IgnoredItem ->
-                            td [ class "ctlisting-ignored" ] [ text "ignored" ]
-                        MissingItem ->
-                            td [ class "ctlisting-no"] [ text "no" ]
-                        MissingAgent ->
-                            td [] [ text "N/A" ]
             in
             tr []
             (
