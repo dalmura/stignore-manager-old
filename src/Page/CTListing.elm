@@ -24,6 +24,7 @@ import STIgnore.Listing as STIListing
 
 import Dict exposing (Dict)
 import Set exposing (Set)
+import String.Extra
 
 import Round
 
@@ -32,11 +33,29 @@ import Round
 -- MODEL
 
 
-type AgentItemStatus
+type ItemStatus
     = Exists Float
     | IgnoredItem
     | MissingItem
     | MissingAgent
+
+
+type STIActionClass
+    = Add
+    | Remove
+
+
+type STIActionType
+    = Ignore
+    | Keep
+
+
+type alias STIAction =
+    { agent : Agent
+    , actionClass : STIActionClass
+    , actionType : STIActionType
+    , name : String
+    }
 
 
 type alias Model =
@@ -44,8 +63,8 @@ type alias Model =
     , contentType : ContentType
     , ctListings : Dict String CTListing.KVListing
     , stiListings : Dict String STIListing.KVListing
+    , stiActions : List STIAction
     }
-
 
 
 init : Session -> Slug -> ( Model, Cmd Msg )
@@ -71,6 +90,7 @@ init session slug =
       , contentType = contentType
       , ctListings = Dict.empty
       , stiListings = Dict.empty
+      , stiActions = []
       }
     , Cmd.batch (
         (List.map (agentCTListing contentType) agents)
@@ -92,6 +112,10 @@ view model =
             [ div [ class "container page" ]
                 [ div [ class "row" ]
                     [ div [ class "col-md-12" ] <|
+                        summaryAndActionsTable model.contentType model.stiActions
+                    ]
+                , div [ class "row" ]
+                    [ div [ class "col-md-12" ] <|
                         case (Dict.isEmpty model.ctListings) of
                             True ->
                                 [ text "No Agents had this Content Type?" ]
@@ -103,48 +127,126 @@ view model =
     }
 
 
-itemStatusToCell : Float -> AgentItemStatus -> Html Msg
-itemStatusToCell targetSize itemStatus =
+stiActionToTableRow : STIAction -> Html Msg
+stiActionToTableRow stiAction =
+    let
+        actionClass =
+            case stiAction.actionClass of
+                Add -> "Add"
+                Remove -> "Remove"
+
+        actionType =
+            case stiAction.actionType of
+                Ignore -> "Ignore"
+                Keep -> "Keep"
+    in
+        tr []
+        [ td [] [ text (Agents.name stiAction.agent) ]
+        , td [] [ text actionClass ]
+        , td [] [ text stiAction.name ]
+        , td [] [ text actionType ]
+        ]
+
+
+stiActionsToTable : List STIAction -> Html Msg
+stiActionsToTable stiActions =
+    table [ class "stilisting-table" ]
+        (
+            [ thead []
+                [ th [] [ text "Agent" ]
+                , th [] [ text "Action" ]
+                , th [] [ text "Item" ]
+                , th [] [ text "Type" ]
+                ]
+            ]
+            ++ List.map stiActionToTableRow stiActions
+        )
+
+
+summaryAndActionsTable : ContentType -> List STIAction -> List (Html Msg)
+summaryAndActionsTable ctype stiActions =
+    let
+        actionsTable =
+            case (List.isEmpty stiActions) of
+                True ->
+                    []
+                False ->
+                    [ h4 [] [ text "Pending Actions" ]
+                    , stiActionsToTable stiActions
+                    , br [] []
+                    ]
+    in
+        (
+            [ h2 [] [ text (String.Extra.toTitleCase (ContentTypes.name ctype)) ]
+            , br [] []
+            ] ++ actionsTable
+        )
+
+
+agentItemStatusToCell : String -> Float -> (Agent, ItemStatus) -> Html Msg
+agentItemStatusToCell itemName targetSize (agent, itemStatus) =
     case itemStatus of
         Exists size ->
             if size == targetSize then
-                td [ class "ctlisting-yes" ] [ text "yes" ]
+                td [ class "ctlisting-yes" ]
+                    [ a [ onClick (AddSTIAction (STIAction agent Add Ignore itemName))
+                        , href ""
+                        , class "tag-pill tag-default"
+                        ] [ text "yes" ]
+                    ]
             else
                 td [ class "ctlisting-yes" ] [ text "yes (size conflict)" ]
         IgnoredItem ->
-            td [ class "ctlisting-ignored" ] [ text "ignored" ]
+            td [ class "ctlisting-ignored" ]
+                [ a [ onClick (AddSTIAction (STIAction agent Remove Ignore itemName))
+                    , href ""
+                    , class "tag-pill tag-default"
+                    ] [ text "ignored" ]
+                ]
         MissingItem ->
             td [ class "ctlisting-no"] [ text "no" ]
         MissingAgent ->
             td [] [ text "N/A" ]
 
 
-itemStatusSize : AgentItemStatus -> Maybe Float
-itemStatusSize itemStatus =
+itemStatusSize : (Agent, ItemStatus) -> Maybe Float
+itemStatusSize (agent, itemStatus) =
     case itemStatus of
         Exists size -> Just size
         _ -> Nothing
 
 
-agentHasItem : Dict String CTListing.KVListing -> Dict String STIListing.KVListing -> String -> String -> AgentItemStatus
-agentHasItem ctLookup stiLookup itemName agentName =
+agentHasItem : Dict String CTListing.KVListing -> Dict String STIListing.KVListing -> String -> Agent -> (Agent, ItemStatus)
+agentHasItem ctLookup stiLookup itemName agent =
+    let
+        agentName = Agents.pretty agent
+    in
     case (Dict.get agentName ctLookup) of
         Just ctListing ->
             case (Dict.get itemName ctListing) of
                 Just item ->
-                    Exists (CTListing.size item)
+                    (agent, Exists (CTListing.size item))
                 Nothing ->
                     case (Dict.get agentName stiLookup) of
                         Just stiListing ->
                             case (Dict.get itemName stiListing) of
                                 Just item ->
-                                    IgnoredItem
+                                    (agent, IgnoredItem)
                                 Nothing ->
-                                    MissingItem
+                                    (agent, MissingItem)
                         Nothing ->
-                            MissingItem
+                            (agent, MissingItem)
         Nothing ->
-            MissingAgent
+            (agent, MissingAgent)
+
+
+toHumanSize : Float -> String
+toHumanSize sizeInMB =
+    if sizeInMB > 1000 then
+        (Round.round 2 (sizeInMB / 1000)) ++ " GB"
+    else
+        (Round.round 2 (sizeInMB)) ++ " MB"
+
 
 agentListingsTable : Agents -> Dict String CTListing.KVListing -> Dict String STIListing.KVListing -> ContentType -> List (Html Msg)
 agentListingsTable agents ctListings stiListings ctype =
@@ -166,9 +268,8 @@ agentListingsTable agents ctListings stiListings ctype =
         toTableRow : Agents -> Dict String CTListing.KVListing -> Dict String STIListing.KVListing -> String -> Html Msg
         toTableRow rowAgents ctLookup stiLookup itemName =
             let
-                agentKeys = List.map Agents.pretty rowAgents
-                agentItemRow = List.map (agentHasItem ctLookup stiLookup itemName) agentKeys
-                rowSizes = List.filterMap itemStatusSize agentItemRow
+                agentItemStatusRow = List.map (agentHasItem ctLookup stiLookup itemName) rowAgents
+                rowSizes = List.filterMap itemStatusSize agentItemStatusRow
 
                 replicationCount = List.length rowSizes
                 replicationCountMin = 2
@@ -176,50 +277,44 @@ agentListingsTable agents ctListings stiListings ctype =
                 maxSize = Maybe.withDefault 0 (List.maximum rowSizes)
                 maxSizeHuman = toHumanSize maxSize
 
+                itemNameEllipsis =
+                    String.Extra.ellipsis 60 itemName
+
                 itemNameCell =
                     if replicationCount < replicationCountMin then
-                        td [ class "ctlisting-low-replication" ] [ text itemName ]
+                        td [ class "ctlisting-low-replication" ] [ text itemNameEllipsis ]
                     else
-                        td [] [ text itemName ]
+                        td [] [ text itemNameEllipsis ]
             in
             tr []
             (
                 [ itemNameCell
                 , td [] [ text maxSizeHuman ]
                 ]
-                ++ List.map (itemStatusToCell maxSize) agentItemRow
+                ++ List.map (agentItemStatusToCell itemName maxSize) agentItemStatusRow
             )
     in
-    [ div []
-        [ table [ class "ctlisting-table" ]
-            (
-                [ thead []
-                    (
-                        [ th [] [ text "Item" ]
-                        , th [] [ text "Size" ]
-                        ]
-                        ++ List.map toTableHeader agents
-                    )
-                ]
-                ++ List.map (toTableRow agents ctListings stiListings) uniqueNames
-            )
-        ]
+    [ table [ class "ctlisting-table" ]
+        (
+            [ thead []
+                (
+                    [ th [] [ text "Item" ]
+                    , th [] [ text "Size" ]
+                    ]
+                    ++ List.map toTableHeader agents
+                )
+            ]
+            ++ List.map (toTableRow agents ctListings stiListings) uniqueNames
+        )
     ]
-
-
-toHumanSize : Float -> String
-toHumanSize sizeInMB =
-    if sizeInMB > 1000 then
-        (Round.round 2 (sizeInMB / 1000)) ++ " GB"
-    else
-        (Round.round 2 (sizeInMB)) ++ " MB"
 
 
 -- UPDATE
 
 
 type Msg
-    = GotAgentCTListing (Result Http.Error (Agent, CTListing.Listing))
+    = AddSTIAction STIAction
+    | GotAgentCTListing (Result Http.Error (Agent, CTListing.Listing))
     | GotAgentSTIListing (Result Http.Error (Agent, STIListing.Listing))
     | GotSession Session
 
@@ -227,6 +322,9 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        AddSTIAction stiAction ->
+            ( { model | stiActions = (model.stiActions ++ [stiAction]) }, Cmd.none )
+
         GotAgentCTListing (Ok (agent, listing)) ->
             let
                 kvlisting = CTListing.toKV listing
