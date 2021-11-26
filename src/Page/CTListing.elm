@@ -51,7 +51,8 @@ type STIActionType
 
 
 type alias STIAction =
-    { agent : Agent
+    { id : Int
+    , agent : Agent
     , actionClass : STIActionClass
     , actionType : STIActionType
     , name : String
@@ -63,6 +64,7 @@ type alias Model =
     , contentType : ContentType
     , ctListings : Dict String CTListing.KVListing
     , stiListings : Dict String STIListing.KVListing
+    , nextStiId : Int
     , stiActions : List STIAction
     }
 
@@ -90,6 +92,7 @@ init session slug =
       , contentType = contentType
       , ctListings = Dict.empty
       , stiListings = Dict.empty
+      , nextStiId = 1
       , stiActions = []
       }
     , Cmd.batch (
@@ -141,10 +144,16 @@ stiActionToTableRow stiAction =
                 Keep -> "Keep"
     in
         tr []
-        [ td [] [ text (Agents.name stiAction.agent) ]
+        [ td [] [ text (String.fromInt stiAction.id) ]
+        , td [] [ text (Agents.name stiAction.agent) ]
         , td [] [ text actionClass ]
         , td [] [ text stiAction.name ]
         , td [] [ text actionType ]
+        , td [] [ a [ onClick (RemoveSTIAction stiAction.id)
+                      , href ""
+                      , class "tag-pill tag-default"
+                    ] [ text "X" ]
+                ]
         ]
 
 
@@ -153,10 +162,12 @@ stiActionsToTable stiActions =
     table [ class "stilisting-table" ]
         (
             [ thead []
-                [ th [] [ text "Agent" ]
-                , th [] [ text "Action" ]
-                , th [] [ text "Item" ]
-                , th [] [ text "Type" ]
+                [ th [ style "text-align" "center" ] [ text "ID" ]
+                , th [ style "text-align" "center" ] [ text "Agent" ]
+                , th [ style "text-align" "center" ] [ text "Action" ]
+                , th [ style "text-align" "center" ] [ text "Item" ]
+                , th [ style "text-align" "center" ] [ text "Type" ]
+                , th [ style "text-align" "center" ] [ text "Remove" ]
                 ]
             ]
             ++ List.map stiActionToTableRow stiActions
@@ -189,7 +200,7 @@ agentItemStatusToCell itemName targetSize (agent, itemStatus) =
         Exists size ->
             if size == targetSize then
                 td [ class "ctlisting-yes" ]
-                    [ a [ onClick (AddSTIAction (STIAction agent Add Ignore itemName))
+                    [ a [ onClick (AddSTIAction agent Add Ignore itemName)
                         , href ""
                         , class "tag-pill tag-default"
                         ] [ text "yes" ]
@@ -198,7 +209,7 @@ agentItemStatusToCell itemName targetSize (agent, itemStatus) =
                 td [ class "ctlisting-yes" ] [ text "yes (size conflict)" ]
         IgnoredItem ->
             td [ class "ctlisting-ignored" ]
-                [ a [ onClick (AddSTIAction (STIAction agent Remove Ignore itemName))
+                [ a [ onClick (AddSTIAction agent Remove Ignore itemName)
                     , href ""
                     , class "tag-pill tag-default"
                     ] [ text "ignored" ]
@@ -312,8 +323,10 @@ agentListingsTable agents ctListings stiListings ctype =
 -- UPDATE
 
 
+
 type Msg
-    = AddSTIAction STIAction
+    = AddSTIAction Agent STIActionClass STIActionType String
+    | RemoveSTIAction Int
     | GotAgentCTListing (Result Http.Error (Agent, CTListing.Listing))
     | GotAgentSTIListing (Result Http.Error (Agent, STIListing.Listing))
     | GotSession Session
@@ -322,8 +335,26 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        AddSTIAction stiAction ->
-            ( { model | stiActions = (model.stiActions ++ [stiAction]) }, Cmd.none )
+        AddSTIAction agent actionClass actionType name ->
+            let
+                stiAction = STIAction model.nextStiId agent actionClass actionType name
+            in
+            ( { model | stiActions = (model.stiActions ++ [stiAction]),
+                        nextStiId = model.nextStiId + 1
+              }, Cmd.none )
+
+        RemoveSTIAction id ->
+            let
+                isId : Int -> STIAction -> Bool
+                isId needle item =
+                    if item.id == needle then
+                        False
+                    else
+                        True
+
+                newActions = List.filter (isId id) model.stiActions
+            in
+            ( { model | stiActions = newActions }, Cmd.none )
 
         GotAgentCTListing (Ok (agent, listing)) ->
             let
