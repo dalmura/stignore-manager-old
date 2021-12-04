@@ -3,6 +3,15 @@ Web interface for interacting with many stignore agents
 
 Written in [Elm](https://elm-lang.org/)
 
+Rough feature list:
+- [x] Add/Remove/Default Agents
+- [x] Single depth Content Types Listing
+- [ ] Multi depth Content Types Listing
+- [x] Colour coded (for context) CT Listing pages
+- [x] Build list of ST Ignore file actions
+- [ ] Submit ST Ignore file actions
+- [ ] Flush ST Ignore change to underlying folder
+
 ## Development
 ### Install
 1. [Install Elm](https://guide.elm-lang.org/install/elm.html)

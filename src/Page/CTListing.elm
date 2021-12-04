@@ -144,8 +144,7 @@ stiActionToTableRow stiAction =
                 Keep -> "Keep"
     in
         tr []
-        [ td [] [ text (String.fromInt stiAction.id) ]
-        , td [] [ text (Agents.name stiAction.agent) ]
+        [ td [] [ text (Agents.name stiAction.agent) ]
         , td [] [ text actionClass ]
         , td [] [ text stiAction.name ]
         , td [] [ text actionType ]
@@ -162,8 +161,7 @@ stiActionsToTable stiActions =
     table [ class "stilisting-table" ]
         (
             [ thead []
-                [ th [ style "text-align" "center" ] [ text "ID" ]
-                , th [ style "text-align" "center" ] [ text "Agent" ]
+                [ th [ style "text-align" "center" ] [ text "Agent" ]
                 , th [ style "text-align" "center" ] [ text "Action" ]
                 , th [ style "text-align" "center" ] [ text "Item" ]
                 , th [ style "text-align" "center" ] [ text "Type" ]
