@@ -180,7 +180,14 @@ summaryAndActionsTable ctype stiActions =
                 True ->
                     []
                 False ->
-                    [ h4 [] [ text "Pending Actions" ]
+                    [ h4 [] [ text "Pending Actions"
+                            , text " "
+                            , button [ class "btn btn-sm btn-primary", onClick ApplySTIActions ]
+                        [ text "Apply Changes" ]
+                            , text " "
+                            , button [ class "btn btn-sm btn-primary", onClick FlushSTIActions ]
+                        [ text "Flush Changes" ]
+                            ]
                     , stiActionsToTable stiActions
                     , br [] []
                     ]
@@ -327,6 +334,8 @@ type Msg
     | RemoveSTIAction Int
     | GotAgentCTListing (Result Http.Error (Agent, CTListing.Listing))
     | GotAgentSTIListing (Result Http.Error (Agent, STIListing.Listing))
+    | ApplySTIActions
+    | FlushSTIActions
     | GotSession Session
 
 
@@ -335,11 +344,37 @@ update msg model =
     case msg of
         AddSTIAction agent actionClass actionType name ->
             let
-                stiAction = STIAction model.nextStiId agent actionClass actionType name
+                actionSame : Agent -> STIActionClass -> STIActionType -> String -> STIAction -> Bool
+                actionSame newAgent newActionClass newActionType newName curAction =
+                    if (Agents.pretty newAgent) /= (Agents.pretty curAction.agent) then
+                        False
+                    else if newActionClass /= curAction.actionClass then
+                        False
+                    else if newActionType /= curAction.actionType then
+                        False
+                    else if newName /= curAction.name then
+                        False
+                    else
+                        True
+
+                actionExistsAlready =
+                    List.any (actionSame agent actionClass actionType name) model.stiActions
+
+                stiActions =
+                    if actionExistsAlready then
+                        model.stiActions
+                    else
+                        model.stiActions ++ [STIAction model.nextStiId agent actionClass actionType name]
+
+                nextStiId =
+                    if actionExistsAlready then
+                        model.nextStiId
+                    else
+                        model.nextStiId + 1
             in
-            ( { model | stiActions = (model.stiActions ++ [stiAction]),
-                        nextStiId = model.nextStiId + 1
-              }, Cmd.none )
+            ( { model | stiActions = stiActions, nextStiId = nextStiId }
+            , Cmd.none
+            )
 
         RemoveSTIAction id ->
             let
@@ -392,6 +427,14 @@ update msg model =
             ( { model | stiListings = newListings }, Cmd.none )
 
         GotAgentSTIListing (Err error) ->
+            ( model, Cmd.none )
+
+        ApplySTIActions ->
+            Debug.log "ApplySTIActions Fired"
+            ( model, Cmd.none )
+
+        FlushSTIActions ->
+            Debug.log "FlushSTIActions Fired"
             ( model, Cmd.none )
 
         GotSession session ->
