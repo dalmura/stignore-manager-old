@@ -63,8 +63,18 @@ type alias Form =
     }
 
 
-init : Session -> ( Model, Cmd msg )
+init : Session -> ( Model, Cmd Msg )
 init session =
+    let
+        noAgentsInSession = List.isEmpty (Session.agents session)
+
+        maybeLoadAgents =
+            if noAgentsInSession then
+                Api.loadAgents (Session.cred session)
+                    |> Http.send LoadedAgents
+            else
+                Cmd.none
+    in
     ( { session = session
       , problems = []
       , form =
@@ -72,7 +82,7 @@ init session =
             , host = ""
             }
       }
-    , Cmd.none
+    , maybeLoadAgents
     )
 
 
@@ -99,6 +109,8 @@ view model =
                         , viewForm model.form
                         ]
                     ]
+                    , button [ class "btn btn-lg btn-primary pull-xs-right", onClick LoadAgents ]
+                        [ text "Load Server Agents" ]
                 ]
             ]
     }
@@ -167,6 +179,8 @@ type Msg
     | RemoveAgent Agent
     | EnteredName String
     | EnteredHost String
+    | LoadAgents
+    | LoadedAgents (Result Http.Error (List Agent))
     | GotSession Session
 
 
@@ -180,7 +194,7 @@ update msg model =
                         agent = Agents.new form.name form.host
                     in
                     ( { model | problems = []
-                              , session = Session.addAgent model.session agent
+                              , session = Session.addAgent agent model.session
                               , form={name = "", host = ""}
                       }
                     , Cmd.none
@@ -206,6 +220,20 @@ update msg model =
             ( { model | session = session }
             , Route.replaceUrl (Session.navKey session) Route.Home
             )
+
+        LoadAgents ->
+            ( model
+            , Api.loadAgents (Session.cred model.session)
+                |> Http.send LoadedAgents
+            )
+
+        LoadedAgents (Ok agents) ->
+            ( { model | session = (List.foldl Session.addAgent model.session agents) }
+            , Cmd.none
+            )
+
+        LoadedAgents (Err error) ->
+            ( model, Cmd.none )
 
 
 {-| Helper function for `update`. Updates the form and returns Cmd.none.

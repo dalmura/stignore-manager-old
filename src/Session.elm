@@ -69,14 +69,20 @@ agents session =
 -- CHANGES
 
 
-addAgent : Session -> Agent -> Session
-addAgent session agent =
+addAgent : Agent -> Session -> Session
+addAgent newAgent session =
     case session of
         LoggedIn key maybeCred curAgents ->
-            LoggedIn key maybeCred (List.append curAgents [agent])
+            if List.any (sameAgent newAgent) curAgents then
+                LoggedIn key maybeCred curAgents
+            else
+                LoggedIn key maybeCred (List.append curAgents [newAgent])
 
         Guest key curAgents ->
-            Guest key (List.append curAgents [agent])
+            if List.any (sameAgent newAgent) curAgents then
+                Guest key curAgents
+            else
+                Guest key (List.append curAgents [newAgent])
 
 
 sameAgent : Agent -> Agent -> Bool

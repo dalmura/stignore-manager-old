@@ -15,3 +15,23 @@ Written in [Elm](https://elm-lang.org/)
 ## Production
 0. (Optional) Build image `docker build -t mytag:latest .`
 1. Run docker image from `ghcr.io/dalmura/stignore-manager:latest` or your own registry
+
+## Loading Agents
+You can optionally make a /agents.json available on the same hostname to load a list of default agents:
+```
+wget http://localhost:8000/agents.json
+
+{
+  "agents": [
+    {
+      "name": "Agent #1",
+      "host": "https://agent-1.mydomain.com"
+    },
+    {
+      "name": "Agent #2",
+      "host": "https://agent-2.mydomain.com"
+    }
+  ]
+}
+
+```

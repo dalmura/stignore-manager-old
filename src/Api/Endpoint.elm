@@ -1,4 +1,4 @@
-module Api.Endpoint exposing (Endpoint, article, articles, comment, comments, favorite, feed, follow, login, profiles, request, tags, user, users, discover, listing, stignore, flush)
+module Api.Endpoint exposing (Endpoint, loadAgents, article, articles, comment, comments, favorite, feed, follow, login, profiles, request, tags, user, users, discover, listing, stignore, flush)
 
 import Agents exposing (Agent)
 import ContentTypes exposing (ContentType)
@@ -50,6 +50,12 @@ type Endpoint
 unwrap : Endpoint -> String
 unwrap (Endpoint str) =
     str
+
+
+loadAgents : Endpoint
+loadAgents =
+    Url.Builder.absolute ["agents.json"] []
+        |> Endpoint
 
 
 url : List String -> List QueryParameter -> Endpoint

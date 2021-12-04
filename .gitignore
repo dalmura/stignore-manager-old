@@ -6,5 +6,8 @@ repl-temp-*
 # elm compiled files
 elm.js
 
+# stignore-manager temp files
+agents.json
+
 # Vim swp files
 *.swp
