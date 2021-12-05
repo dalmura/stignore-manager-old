@@ -1,6 +1,6 @@
 module Modal exposing (new)
 
-import Html exposing (Html, Attribute, div, h1, text)
+import Html exposing (Html, Attribute, div, h2, text)
 import Html.Attributes exposing (style, id)
 import Html.Events exposing (onClick)
 
@@ -34,14 +34,13 @@ modalStyle =
     ]
 
 
-
 new : String -> String -> String -> msg -> Html msg
 new divId modalTitle modalBody closeMsg =
   div
     (maskStyle ++ [ id divId, onClick closeMsg ])
     [ div
         modalStyle
-        [ h1 [] [ text modalTitle ]
+        [ h2 [] [ text modalTitle ]
         , div [] [ text modalBody ]
         ]
     ]

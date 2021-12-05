@@ -147,7 +147,7 @@ renderApplyModal model =
 renderFlushModal : Model -> Html Msg
 renderFlushModal model =
     if model.flushModalOpen then
-        Modal.new "flush-modal" "Apply Actions" "We're going to apply:" CloseFlushModal
+        Modal.new "flush-modal" "Flush Changes" "We're going to flush:" CloseFlushModal
     else
         div [] []
 
