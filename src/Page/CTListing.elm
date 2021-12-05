@@ -21,6 +21,7 @@ import ContentTypes exposing (ContentTypes, ContentType)
 import ContentTypes.Slug exposing (Slug)
 import ContentTypes.Listing as CTListing
 import STIgnore.Listing as STIListing
+import Modal
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -66,6 +67,8 @@ type alias Model =
     , stiListings : Dict String STIListing.KVListing
     , nextStiId : Int
     , stiActions : List STIAction
+    , applyModalOpen : Bool
+    , flushModalOpen : Bool
     }
 
 
@@ -94,6 +97,8 @@ init session slug =
       , stiListings = Dict.empty
       , nextStiId = 1
       , stiActions = []
+      , applyModalOpen = False
+      , flushModalOpen = False
       }
     , Cmd.batch (
         (List.map (agentCTListing contentType) agents)
@@ -112,7 +117,9 @@ view model =
     { title = "Listing"
     , content =
         div [ class "listing-page" ]
-            [ div [ class "container page" ]
+            [ (renderApplyModal model)
+            , (renderFlushModal model)
+            , div [ class "container page" ]
                 [ div [ class "row" ]
                     [ div [ class "col-md-12" ] <|
                         summaryAndActionsTable model.contentType model.stiActions
@@ -128,6 +135,21 @@ view model =
                 ]
             ]
     }
+
+
+renderApplyModal : Model -> Html Msg
+renderApplyModal model =
+    if model.applyModalOpen then
+        Modal.new "apply-modal" "Apply Actions" "We're going to apply:" CloseApplyModal
+    else
+        div [] []
+
+renderFlushModal : Model -> Html Msg
+renderFlushModal model =
+    if model.flushModalOpen then
+        Modal.new "flush-modal" "Apply Actions" "We're going to apply:" CloseFlushModal
+    else
+        div [] []
 
 
 stiActionToTableRow : STIAction -> Html Msg
@@ -336,6 +358,8 @@ type Msg
     | GotAgentSTIListing (Result Http.Error (Agent, STIListing.Listing))
     | ApplySTIActions
     | FlushSTIActions
+    | CloseApplyModal
+    | CloseFlushModal
     | GotSession Session
 
 
@@ -430,12 +454,16 @@ update msg model =
             ( model, Cmd.none )
 
         ApplySTIActions ->
-            Debug.log "ApplySTIActions Fired"
-            ( model, Cmd.none )
+            ( { model | applyModalOpen = True }, Cmd.none )
 
         FlushSTIActions ->
-            Debug.log "FlushSTIActions Fired"
-            ( model, Cmd.none )
+            ( { model | flushModalOpen = True }, Cmd.none )
+
+        CloseApplyModal ->
+            ( { model | applyModalOpen = False }, Cmd.none )
+
+        CloseFlushModal ->
+            ( { model | flushModalOpen = False }, Cmd.none )
 
         GotSession session ->
             ( { model | session = session }
