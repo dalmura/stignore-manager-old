@@ -5,7 +5,7 @@ import Http
 import ContentTypes.Slug as Slug exposing (Slug)
 
 import Json.Decode as Decode exposing (Decoder)
-import Json.Decode.Pipeline exposing (required, hardcoded)
+import Json.Decode.Pipeline exposing (required)
 import Json.Encode as Encode exposing (Value)
 
 

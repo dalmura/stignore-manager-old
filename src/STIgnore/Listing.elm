@@ -3,7 +3,7 @@ module STIgnore.Listing exposing (Listing, KVListing, Item, new, raw, name, igno
 --import ContentTypes exposing (ContentType)
 
 import Json.Decode as Decode exposing (Decoder)
-import Json.Decode.Pipeline exposing (required, hardcoded)
+import Json.Decode.Pipeline exposing (required)
 import Json.Encode as Encode exposing (Value)
 
 import Dict exposing (Dict)
