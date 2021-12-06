@@ -34,13 +34,13 @@ modalStyle =
     ]
 
 
-new : String -> String -> String -> msg -> Html msg
+new : String -> String -> List (Html msg) -> msg -> Html msg
 new divId modalTitle modalBody closeMsg =
   div
     (maskStyle ++ [ id divId, onClick closeMsg ])
     [ div
         modalStyle
         [ h2 [] [ text modalTitle ]
-        , div [] [ text modalBody ]
+        , div [] modalBody
         ]
     ]

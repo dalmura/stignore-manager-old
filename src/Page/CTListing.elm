@@ -99,39 +99,51 @@ view model =
     { title = "Listing"
     , content =
         div [ class "listing-page" ]
-            [ (renderApplyModal model)
-            , (renderFlushModal model)
-            , div [ class "container page" ]
-                [ div [ class "row" ]
-                    [ div [ class "col-md-12" ] <|
-                        summaryAndActionsTable model.contentType model.stiActions
-                    ]
-                , div [ class "row" ]
-                    [ div [ class "col-md-12" ] <|
-                        case (Dict.isEmpty model.ctListings) of
-                            True ->
-                                [ text "No Agents had this Content Type?" ]
-                            False ->
-                                agentListingsTable (Session.agents model.session) model.ctListings model.stiListings model.contentType
+            (
+                (
+                    if model.applyModalOpen then
+                        [(renderApplyModal model)]
+                    else
+                        []
+                ) ++
+                (
+                    if model.flushModalOpen then
+                        [(renderFlushModal model)]
+                    else
+                        []
+                ) ++
+                [ div [ class "container page" ]
+                    [ div [ class "row" ]
+                        [ div [ class "col-md-12" ] <|
+                            summaryAndActionsTable model.contentType model.stiActions
+                        ]
+                    , div [ class "row" ]
+                        [ div [ class "col-md-12" ] <|
+                            case (Dict.isEmpty model.ctListings) of
+                                True ->
+                                    [ text "No Agents had this Content Type?" ]
+                                False ->
+                                    agentListingsTable (Session.agents model.session) model.ctListings model.stiListings model.contentType
+                        ]
                     ]
                 ]
-            ]
+            )
     }
 
 
 renderApplyModal : Model -> Html Msg
 renderApplyModal model =
-    if model.applyModalOpen then
-        Modal.new "apply-modal" "Apply Actions" "We're going to apply:" CloseApplyModal
-    else
-        div [] []
+    let
+        modalBody = [div [] [ text "We're going to apply:" ]]
+    in
+    Modal.new "apply-modal" "Apply Actions" modalBody CloseApplyModal
 
 renderFlushModal : Model -> Html Msg
 renderFlushModal model =
-    if model.flushModalOpen then
-        Modal.new "flush-modal" "Flush Changes" "We're going to flush:" CloseFlushModal
-    else
-        div [] []
+    let
+        modalBody = [div [] [ text "We're going to flush:" ]]
+    in
+    Modal.new "flush-modal" "Flush Changes" modalBody CloseFlushModal
 
 
 stiActionToTableRow : STIAction -> Html Msg
