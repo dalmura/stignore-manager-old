@@ -9,8 +9,6 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Http
-import Json.Decode as Decode exposing (Decoder, decodeString, field, string)
-import Json.Decode.Pipeline exposing (optional)
 import Json.Encode as Encode
 import Route exposing (Route)
 import Session exposing (Session)
@@ -21,7 +19,7 @@ import ContentTypes exposing (ContentTypes, ContentType)
 import ContentTypes.Slug exposing (Slug)
 import ContentTypes.Listing as CTListing
 import STIgnore.Listing as STIListing
-import STIAction exposing (STIActionClass(..), STIActionType(..), STIAction)
+import STIActions exposing (STIActionClass(..), STIActionType(..), STIAction, STIActions)
 import Modal
 
 import Dict exposing (Dict)
@@ -48,7 +46,7 @@ type alias Model =
     , ctListings : Dict String CTListing.KVListing
     , stiListings : Dict String STIListing.KVListing
     , nextStiId : Int
-    , stiActions : List STIAction
+    , stiActions : STIActions
     , applyModalOpen : Bool
     , flushModalOpen : Bool
     }
@@ -134,7 +132,12 @@ view model =
 renderApplyModal : Model -> Html Msg
 renderApplyModal model =
     let
-        modalBody = [div [] [ text "We're going to apply:" ]]
+        jsonString = Encode.encode 2 (STIActions.encoder model.stiActions)
+
+        modalBody =
+            [ div [] [ text "We're going to apply:" ]
+            , pre [] [ text jsonString ]
+            ]
     in
     Modal.new "apply-modal" "Apply Actions" modalBody CloseApplyModal
 
@@ -172,7 +175,7 @@ stiActionToTableRow stiAction =
         ]
 
 
-stiActionsToTable : List STIAction -> Html Msg
+stiActionsToTable : STIActions -> Html Msg
 stiActionsToTable stiActions =
     table [ class "stilisting-table" ]
         (
@@ -188,7 +191,7 @@ stiActionsToTable stiActions =
         )
 
 
-summaryAndActionsTable : ContentType -> List STIAction -> List (Html Msg)
+summaryAndActionsTable : ContentType -> STIActions -> List (Html Msg)
 summaryAndActionsTable ctype stiActions =
     let
         actionsTable =

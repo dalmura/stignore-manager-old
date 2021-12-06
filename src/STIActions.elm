@@ -1,4 +1,4 @@
-module STIAction exposing (STIActionClass(..), STIActionType(..), STIAction, encoder, decoder)
+module STIActions exposing (STIActionClass(..), STIActionType(..), STIActions, STIAction, encoder, decoder)
 
 import Agents exposing (Agent)
 
@@ -59,18 +59,18 @@ stiActionTypeDecoder =
             )
 
 
-stiActionDecoder : Agent -> Decoder STIAction
-stiActionDecoder agent =
+stiActionDecoder : Decoder STIAction
+stiActionDecoder =
     Decode.succeed STIAction
         |> hardcoded 0
-        |> hardcoded agent
+        |> hardcoded (Agents.new "FakeName" "FakeURL")
         |> required "action" stiActionClassDecoder
         |> required "type" stiActionTypeDecoder
         |> required "name" Decode.string
 
-decoder : Agent -> Decoder STIActions
-decoder agent =
-    Decode.list (stiActionDecoder agent)
+decoder : Decoder STIActions
+decoder =
+    Decode.list stiActionDecoder
 
 stiActionClassEncoder : STIActionClass -> String
 stiActionClassEncoder actionClass =
