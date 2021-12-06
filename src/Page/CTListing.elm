@@ -21,6 +21,7 @@ import ContentTypes exposing (ContentTypes, ContentType)
 import ContentTypes.Slug exposing (Slug)
 import ContentTypes.Listing as CTListing
 import STIgnore.Listing as STIListing
+import STIAction exposing (STIActionClass(..), STIActionType(..), STIAction)
 import Modal
 
 import Dict exposing (Dict)
@@ -39,25 +40,6 @@ type ItemStatus
     | IgnoredItem
     | MissingItem
     | MissingAgent
-
-
-type STIActionClass
-    = Add
-    | Remove
-
-
-type STIActionType
-    = Ignore
-    | Keep
-
-
-type alias STIAction =
-    { id : Int
-    , agent : Agent
-    , actionClass : STIActionClass
-    , actionType : STIActionType
-    , name : String
-    }
 
 
 type alias Model =
