@@ -196,21 +196,24 @@ stiActionsToTable agentKey stiActions =
     in
         case maybeAgent of
             (Just agent) ->
-                div []
-                    [ h1 [] [ text (Agents.name agent)]
-                    , table [ class "stilisting-table" ]
-                        (
-                            [ thead []
-                                [ th [ style "text-align" "center" ] [ text "Action" ]
-                                , th [ style "text-align" "center" ] [ text "Item" ]
-                                , th [ style "text-align" "center" ] [ text "Type" ]
-                                , th [ style "text-align" "center" ] [ text "Remove" ]
+                if List.isEmpty stiActions then
+                    div [] []
+                else
+                    div []
+                        [ h1 [] [ text (Agents.name agent)]
+                        , table [ class "stilisting-table" ]
+                            (
+                                [ thead []
+                                    [ th [ style "text-align" "center" ] [ text "Action" ]
+                                    , th [ style "text-align" "center" ] [ text "Item" ]
+                                    , th [ style "text-align" "center" ] [ text "Type" ]
+                                    , th [ style "text-align" "center" ] [ text "Remove" ]
+                                    ]
                                 ]
-                            ]
-                            ++ List.map (stiActionToTableRow agent) stiActions
-                        )
-                    , br [] []
-                    ]
+                                ++ List.map (stiActionToTableRow agent) stiActions
+                            )
+                        , br [] []
+                        ]
             Nothing ->
                 div [] [ text ("Unable to parse agent: " ++ agentKey) ]
 
@@ -218,8 +221,16 @@ stiActionsToTable agentKey stiActions =
 summaryAndActionsTable : ContentType -> AgentSTIActions -> List (Html Msg)
 summaryAndActionsTable ctype agentStiActions =
     let
+        noStiActions =
+            if Dict.isEmpty agentStiActions then
+                True
+            else if List.isEmpty (List.concat (Dict.values agentStiActions)) then
+                True
+            else
+                False
+
         actionsTable =
-            case (Dict.isEmpty agentStiActions) of
+            case noStiActions of
                 True ->
                     []
                 False ->
