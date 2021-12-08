@@ -19,7 +19,7 @@ import ContentTypes exposing (ContentTypes, ContentType)
 import ContentTypes.Slug exposing (Slug)
 import ContentTypes.Listing as CTListing
 import STIgnore.Listing as STIListing
-import STIActions exposing (STIActionClass(..), STIActionType(..), STIAction, STIActions)
+import STIActions exposing (STIActionClass(..), STIActionType(..), STIAction, STIActions, AgentSTIActions)
 import Modal
 
 import Dict exposing (Dict)
@@ -46,7 +46,7 @@ type alias Model =
     , ctListings : Dict String CTListing.KVListing
     , stiListings : Dict String STIListing.KVListing
     , nextStiId : Int
-    , stiActions : STIActions
+    , agentStiActions : AgentSTIActions
     , applyModalOpen : Bool
     , flushModalOpen : Bool
     }
@@ -76,7 +76,7 @@ init session slug =
       , ctListings = Dict.empty
       , stiListings = Dict.empty
       , nextStiId = 1
-      , stiActions = []
+      , agentStiActions = Dict.empty
       , applyModalOpen = False
       , flushModalOpen = False
       }
@@ -113,7 +113,7 @@ view model =
                 [ div [ class "container page" ]
                     [ div [ class "row" ]
                         [ div [ class "col-md-12" ] <|
-                            summaryAndActionsTable model.contentType model.stiActions
+                            summaryAndActionsTable model.contentType model.agentStiActions
                         ]
                     , div [ class "row" ]
                         [ div [ class "col-md-12" ] <|
@@ -132,11 +132,26 @@ view model =
 renderApplyModal : Model -> Html Msg
 renderApplyModal model =
     let
-        jsonString = Encode.encode 2 (STIActions.encoder model.stiActions)
+        agentKeys = Dict.keys model.agentStiActions
+
+        agentStiActionsToTable : AgentSTIActions -> String -> Html msg
+        agentStiActionsToTable agentStiActions agentKey =
+            let
+                maybeAgent = Agents.fromKey agentKey
+                maybeStiActions = Dict.get agentKey agentStiActions
+            in
+                case (maybeAgent, maybeStiActions) of
+                    (Just agent, Just stiActions) ->
+                        div []
+                            [ h3 [] [ text (Agents.name agent) ]
+                            , pre [] [ text (Encode.encode 2 (STIActions.encoder stiActions)) ]
+                            ]
+                    (_, _) -> 
+                        div [] []
 
         modalBody =
             [ div [] [ text "We're going to apply:" ]
-            , pre [] [ text jsonString ]
+            , div [] (List.map (agentStiActionsToTable model.agentStiActions) agentKeys)
             ]
     in
     Modal.new "apply-modal" "Apply Actions" modalBody CloseApplyModal
@@ -149,8 +164,8 @@ renderFlushModal model =
     Modal.new "flush-modal" "Flush Changes" modalBody CloseFlushModal
 
 
-stiActionToTableRow : STIAction -> Html Msg
-stiActionToTableRow stiAction =
+stiActionToTableRow : Agent -> STIAction -> Html Msg
+stiActionToTableRow agent stiAction =
     let
         actionClass =
             case stiAction.actionClass of
@@ -163,11 +178,10 @@ stiActionToTableRow stiAction =
                 Keep -> "Keep"
     in
         tr []
-        [ td [] [ text (Agents.name stiAction.agent) ]
-        , td [] [ text actionClass ]
-        , td [] [ text stiAction.name ]
+        [ td [] [ text actionClass ]
+        , td [] [ text (String.Extra.ellipsis 60 stiAction.name) ]
         , td [] [ text actionType ]
-        , td [] [ a [ onClick (RemoveSTIAction stiAction.id)
+        , td [] [ a [ onClick (RemoveSTIAction agent stiAction.id)
                       , href ""
                       , class "tag-pill tag-default"
                     ] [ text "X" ]
@@ -175,41 +189,53 @@ stiActionToTableRow stiAction =
         ]
 
 
-stiActionsToTable : STIActions -> Html Msg
-stiActionsToTable stiActions =
-    table [ class "stilisting-table" ]
-        (
-            [ thead []
-                [ th [ style "text-align" "center" ] [ text "Agent" ]
-                , th [ style "text-align" "center" ] [ text "Action" ]
-                , th [ style "text-align" "center" ] [ text "Item" ]
-                , th [ style "text-align" "center" ] [ text "Type" ]
-                , th [ style "text-align" "center" ] [ text "Remove" ]
-                ]
-            ]
-            ++ List.map stiActionToTableRow stiActions
-        )
+stiActionsToTable : String -> STIActions -> Html Msg
+stiActionsToTable agentKey stiActions =
+    let
+        maybeAgent = Agents.fromKey agentKey
+    in
+        case maybeAgent of
+            (Just agent) ->
+                div []
+                    [ h1 [] [ text (Agents.name agent)]
+                    , table [ class "stilisting-table" ]
+                        (
+                            [ thead []
+                                [ th [ style "text-align" "center" ] [ text "Action" ]
+                                , th [ style "text-align" "center" ] [ text "Item" ]
+                                , th [ style "text-align" "center" ] [ text "Type" ]
+                                , th [ style "text-align" "center" ] [ text "Remove" ]
+                                ]
+                            ]
+                            ++ List.map (stiActionToTableRow agent) stiActions
+                        )
+                    , br [] []
+                    ]
+            Nothing ->
+                div [] [ text ("Unable to parse agent: " ++ agentKey) ]
 
 
-summaryAndActionsTable : ContentType -> STIActions -> List (Html Msg)
-summaryAndActionsTable ctype stiActions =
+summaryAndActionsTable : ContentType -> AgentSTIActions -> List (Html Msg)
+summaryAndActionsTable ctype agentStiActions =
     let
         actionsTable =
-            case (List.isEmpty stiActions) of
+            case (Dict.isEmpty agentStiActions) of
                 True ->
                     []
                 False ->
-                    [ h4 [] [ text "Pending Actions"
+                    (
+                        [ h4 []
+                            [ text "Pending Actions"
                             , text " "
-                            , button [ class "btn btn-sm btn-primary", onClick ApplySTIActions ]
-                        [ text "Apply Changes" ]
+                            , button [ class "btn btn-sm btn-primary", onClick ApplySTIActions ] [ text "Apply Changes" ]
                             , text " "
-                            , button [ class "btn btn-sm btn-primary", onClick FlushSTIActions ]
-                        [ text "Flush Changes" ]
+                            , button [ class "btn btn-sm btn-primary", onClick FlushSTIActions ] [ text "Flush Changes" ]
                             ]
-                    , stiActionsToTable stiActions
-                    , br [] []
-                    ]
+                        ]
+                        ++ (Dict.map stiActionsToTable agentStiActions
+                            |> Dict.values)
+                        ++ [ br [] [] ]
+                    )
     in
         (
             [ h2 [] [ text (String.Extra.toTitleCase (ContentTypes.name ctype)) ]
@@ -350,7 +376,7 @@ agentListingsTable agents ctListings stiListings ctype =
 
 type Msg
     = AddSTIAction Agent STIActionClass STIActionType String
-    | RemoveSTIAction Int
+    | RemoveSTIAction Agent Int
     | GotAgentCTListing (Result Http.Error (Agent, CTListing.Listing))
     | GotAgentSTIListing (Result Http.Error (Agent, STIListing.Listing))
     | ApplySTIActions
@@ -365,11 +391,13 @@ update msg model =
     case msg of
         AddSTIAction agent actionClass actionType name ->
             let
-                actionSame : Agent -> STIActionClass -> STIActionType -> String -> STIAction -> Bool
-                actionSame newAgent newActionClass newActionType newName curAction =
-                    if (Agents.pretty newAgent) /= (Agents.pretty curAction.agent) then
-                        False
-                    else if newActionClass /= curAction.actionClass then
+                agentKey = Agents.key agent
+
+                maybeStiActions = Dict.get agentKey model.agentStiActions
+
+                actionSame : STIActionClass -> STIActionType -> String -> STIAction -> Bool
+                actionSame newActionClass newActionType newName curAction =
+                    if newActionClass /= curAction.actionClass then
                         False
                     else if newActionType /= curAction.actionType then
                         False
@@ -378,37 +406,51 @@ update msg model =
                     else
                         True
 
-                actionExistsAlready =
-                    List.any (actionSame agent actionClass actionType name) model.stiActions
-
-                stiActions =
-                    if actionExistsAlready then
-                        model.stiActions
-                    else
-                        model.stiActions ++ [STIAction model.nextStiId agent actionClass actionType name]
+                (newStiActions, actionExistsAlready) =
+                    case maybeStiActions of
+                        (Just stiActions) ->
+                            case (List.any (actionSame actionClass actionType name) stiActions) of
+                                True ->
+                                    (stiActions, True)
+                                False ->
+                                    ((stiActions ++ [STIAction model.nextStiId actionClass actionType name]), False)
+                        Nothing ->
+                            ([STIAction model.nextStiId actionClass actionType name], False)
 
                 nextStiId =
                     if actionExistsAlready then
                         model.nextStiId
                     else
                         model.nextStiId + 1
+
+                newAgentStiActions = Dict.insert agentKey newStiActions model.agentStiActions
             in
-            ( { model | stiActions = stiActions, nextStiId = nextStiId }
+            ( { model | agentStiActions = newAgentStiActions, nextStiId = nextStiId }
             , Cmd.none
             )
 
-        RemoveSTIAction id ->
+        RemoveSTIAction agent id ->
             let
-                isId : Int -> STIAction -> Bool
-                isId needle item =
+                isNotId : Int -> STIAction -> Bool
+                isNotId needle item =
                     if item.id == needle then
                         False
                     else
                         True
 
-                newActions = List.filter (isId id) model.stiActions
+                agentKey = Agents.key agent
+
+                maybeStiActions = Dict.get agentKey model.agentStiActions
             in
-            ( { model | stiActions = newActions }, Cmd.none )
+            case maybeStiActions of
+                Just stiActions ->
+                    let
+                        newStiActions = List.filter (isNotId id) stiActions
+                        newAgentStiActions = Dict.insert agentKey newStiActions model.agentStiActions
+                    in
+                    ( { model | agentStiActions = newAgentStiActions }, Cmd.none )
+                Nothing ->
+                    ( model, Cmd.none )
 
         GotAgentCTListing (Ok (agent, listing)) ->
             let

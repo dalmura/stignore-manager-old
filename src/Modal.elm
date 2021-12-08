@@ -31,6 +31,7 @@ modalStyle =
     , style "border-radius" "3px"
     , style "box-shadow" "1px 1px 5px rgba(0,0,0,0.5)"
     , style "transform" "translate(-50%, -50%)"
+    , style "overflow" "scroll"
     ]
 
 

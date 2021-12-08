@@ -1,9 +1,10 @@
-module Agents exposing (Agent(..), Agents, new, name, host, pretty, decoder, encode)
+module Agents exposing (Agent(..), Agents, new, fromKey, name, host, pretty, key, decoder, encode)
 
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (required)
 import Json.Encode as Encode exposing (Value)
 
+import Array
 
 
 -- TYPES
@@ -27,6 +28,22 @@ new newName newHost =
     Agent (Internals newName newHost)
 
 
+fromKey : String -> Maybe Agent
+fromKey agentKey =
+    let
+        parts = String.split "!sep!" agentKey
+            |> Array.fromList
+
+        tryName = Array.get 0 parts
+        tryHost = Array.get 1 parts
+    in
+    case (tryName, tryHost) of
+        (Just newName, Just newHost) ->
+            Just (Agent (Internals newName newHost))
+        (_, _) ->
+            Nothing
+
+
 -- INFO
 
 
@@ -43,6 +60,11 @@ host (Agent info) =
 pretty : Agent -> String
 pretty (Agent info) =
     info.name ++ " (" ++ info.host ++ ")"
+
+
+key : Agent -> String
+key (Agent info) =
+    info.name ++ "!sep!" ++ info.host
 
 
 

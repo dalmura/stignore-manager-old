@@ -1,4 +1,4 @@
-module STIActions exposing (STIActionClass(..), STIActionType(..), STIActions, STIAction, encoder, decoder)
+module STIActions exposing (STIActionClass(..), STIActionType(..), AgentSTIActions, STIActions, STIAction, encoder, decoder)
 
 import Agents exposing (Agent)
 
@@ -6,6 +6,7 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (required, hardcoded)
 import Json.Encode as Encode exposing (Value)
 
+import Dict exposing (Dict)
 
 
 -- TYPES
@@ -23,13 +24,15 @@ type STIActionType
 
 type alias STIAction =
     { id : Int
-    , agent : Agent
     , actionClass : STIActionClass
     , actionType : STIActionType
     , name : String
     }
 
 type alias STIActions = List STIAction
+
+-- Key: Agents.key
+type alias AgentSTIActions = Dict String STIActions
 
 
 
@@ -63,7 +66,6 @@ stiActionDecoder : Decoder STIAction
 stiActionDecoder =
     Decode.succeed STIAction
         |> hardcoded 0
-        |> hardcoded (Agents.new "FakeName" "FakeURL")
         |> required "action" stiActionClassDecoder
         |> required "type" stiActionTypeDecoder
         |> required "name" Decode.string
@@ -71,6 +73,7 @@ stiActionDecoder =
 decoder : Decoder STIActions
 decoder =
     Decode.list stiActionDecoder
+
 
 stiActionClassEncoder : STIActionClass -> String
 stiActionClassEncoder actionClass =
@@ -80,6 +83,7 @@ stiActionClassEncoder actionClass =
         Remove ->
             "remove"
 
+
 stiActionTypeEncoder : STIActionType -> String
 stiActionTypeEncoder actionType =
     case actionType of
@@ -87,6 +91,7 @@ stiActionTypeEncoder actionType =
             "ignore"
         Keep ->
             "keep"
+
 
 stiActionEncoder : STIAction -> Value
 stiActionEncoder action =
