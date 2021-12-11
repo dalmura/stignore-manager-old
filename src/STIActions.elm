@@ -67,7 +67,7 @@ stiActionDecoder =
     Decode.succeed STIAction
         |> hardcoded 0
         |> required "action" stiActionClassDecoder
-        |> required "type" stiActionTypeDecoder
+        |> required "ignore_type" stiActionTypeDecoder
         |> required "name" Decode.string
 
 decoder : Decoder STIActions
@@ -97,7 +97,7 @@ stiActionEncoder : STIAction -> Value
 stiActionEncoder action =
     Encode.object
         [ ( "action", Encode.string (stiActionClassEncoder action.actionClass) )
-        , ( "type",  Encode.string (stiActionTypeEncoder action.actionType) )
+        , ( "ignore_type",  Encode.string (stiActionTypeEncoder action.actionType) )
         , ( "name", Encode.string action.name )
         ]
 

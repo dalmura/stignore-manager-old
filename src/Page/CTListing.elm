@@ -152,6 +152,7 @@ renderApplyModal model =
         modalBody =
             [ div [] [ text "We're going to apply:" ]
             , div [] (List.map (agentStiActionsToTable model.agentStiActions) agentKeys)
+            , button [ class "btn btn-sm btn-primary", onClick ApplySTIActions ] [ text "Submit Changes" ]
             ]
     in
     Modal.new "apply-modal" "Apply Actions" modalBody CloseApplyModal
@@ -232,15 +233,18 @@ summaryAndActionsTable ctype agentStiActions =
         actionsTable =
             case noStiActions of
                 True ->
-                    []
+                    [ h4 []
+                        [ button [ class "btn btn-sm btn-primary", onClick ViewFlushModal ] [ text "Flush Changes" ]
+                        ]
+                    ]
                 False ->
                     (
                         [ h4 []
                             [ text "Pending Actions"
                             , text " "
-                            , button [ class "btn btn-sm btn-primary", onClick ApplySTIActions ] [ text "Apply Changes" ]
+                            , button [ class "btn btn-sm btn-primary", onClick ViewApplyModal ] [ text "Apply Changes" ]
                             , text " "
-                            , button [ class "btn btn-sm btn-primary", onClick FlushSTIActions ] [ text "Flush Changes" ]
+                            , button [ class "btn btn-sm btn-primary", onClick ViewFlushModal ] [ text "Flush Changes" ]
                             ]
                         ]
                         ++ (Dict.map stiActionsToTable agentStiActions
@@ -255,19 +259,45 @@ summaryAndActionsTable ctype agentStiActions =
         )
 
 
-agentItemStatusToCell : String -> Float -> (Agent, ItemStatus) -> Html Msg
-agentItemStatusToCell itemName targetSize (agent, itemStatus) =
+agentItemStatusToCell : Dict String STIListing.KVListing -> String -> Float -> (Agent, ItemStatus) -> Html Msg
+agentItemStatusToCell stiLookup itemName targetSize (agent, itemStatus) =
+    let
+        maybeStiListing = Dict.get (Agents.key agent) stiLookup
+
+        existsInStiListing =
+            case maybeStiListing of
+                Just stiListing ->
+                    case (Dict.get itemName stiListing) of
+                        Just _ ->
+                            True
+                        Nothing ->
+                            False
+                Nothing ->
+                    False
+    in
     case itemStatus of
         Exists size ->
-            if size == targetSize then
+            if (size == targetSize && not existsInStiListing) then
                 td [ class "ctlisting-yes" ]
                     [ a [ onClick (AddSTIAction agent Add Ignore itemName)
                         , href ""
                         , class "tag-pill tag-default"
                         ] [ text "yes" ]
                     ]
-            else
+            else if (size == targetSize && existsInStiListing) then
+                td [ class "ctlisting-yes" ]
+                    [ a [ onClick (AddSTIAction agent Remove Ignore itemName)
+                        , href ""
+                        , class "tag-pill tag-default"
+                        ] [ text "yes (flush will delete)" ]
+                    ]
+            else if (size /= targetSize && not existsInStiListing) then
                 td [ class "ctlisting-yes" ] [ text "yes (size conflict)" ]
+            else if (size /= targetSize && existsInStiListing) then
+                td [ class "ctlisting-yes" ] [ text "yes (size conflict & flush will delete)" ]
+            else
+                td [ class "ctlisting-yes" ] [ text "yes (unknown state)" ]
+
         IgnoredItem ->
             td [ class "ctlisting-ignored" ]
                 [ a [ onClick (AddSTIAction agent Remove Ignore itemName)
@@ -275,8 +305,10 @@ agentItemStatusToCell itemName targetSize (agent, itemStatus) =
                     , class "tag-pill tag-default"
                     ] [ text "ignored" ]
                 ]
+
         MissingItem ->
             td [ class "ctlisting-no"] [ text "no" ]
+
         MissingAgent ->
             td [] [ text "N/A" ]
 
@@ -291,15 +323,15 @@ itemStatusSize (agent, itemStatus) =
 agentHasItem : Dict String CTListing.KVListing -> Dict String STIListing.KVListing -> String -> Agent -> (Agent, ItemStatus)
 agentHasItem ctLookup stiLookup itemName agent =
     let
-        agentName = Agents.pretty agent
+        agentKey = Agents.key agent
     in
-    case (Dict.get agentName ctLookup) of
+    case (Dict.get agentKey ctLookup) of
         Just ctListing ->
             case (Dict.get itemName ctListing) of
                 Just item ->
                     (agent, Exists (CTListing.size item))
                 Nothing ->
-                    case (Dict.get agentName stiLookup) of
+                    case (Dict.get agentKey stiLookup) of
                         Just stiListing ->
                             case (Dict.get itemName stiListing) of
                                 Just item ->
@@ -363,7 +395,7 @@ agentListingsTable agents ctListings stiListings ctype =
                 [ itemNameCell
                 , td [] [ text maxSizeHuman ]
                 ]
-                ++ List.map (agentItemStatusToCell itemName maxSize) agentItemStatusRow
+                ++ List.map (agentItemStatusToCell stiLookup itemName maxSize) agentItemStatusRow
             )
     in
     [ table [ class "ctlisting-table" ]
@@ -390,10 +422,14 @@ type Msg
     | RemoveSTIAction Agent Int
     | GotAgentCTListing (Result Http.Error (Agent, CTListing.Listing))
     | GotAgentSTIListing (Result Http.Error (Agent, STIListing.Listing))
-    | ApplySTIActions
-    | FlushSTIActions
+    | ViewApplyModal
+    | ViewFlushModal
     | CloseApplyModal
     | CloseFlushModal
+    | ApplySTIActions
+    | GotAgentApplyResponse (Result Http.Error (Agent, String))
+    | FlushSTIActions
+    | GotAgentFlushResponse (Result Http.Error (Agent, String))
     | GotSession Session
 
 
@@ -467,16 +503,15 @@ update msg model =
             let
                 kvlisting = CTListing.toKV listing
 
-                agentStr = Agents.pretty agent
-                maybeExisting = Dict.get agentStr model.ctListings
+                agentKey = Agents.key agent
 
                 newListings =
-                    case maybeExisting of
+                    case (Dict.get agentKey model.ctListings) of
                         Just current ->
-                            Dict.insert agentStr (Dict.union kvlisting current) model.ctListings
+                            Dict.insert agentKey (Dict.union kvlisting current) model.ctListings
 
                         Nothing ->
-                            Dict.insert agentStr kvlisting model.ctListings
+                            Dict.insert agentKey kvlisting model.ctListings
             in
             ( { model | ctListings = newListings }, Cmd.none )
 
@@ -485,28 +520,21 @@ update msg model =
 
         GotAgentSTIListing (Ok (agent, listing)) ->
             let
+                agentKey = Agents.key agent
                 kvlisting = STIListing.toKV listing
 
-                agentStr = Agents.pretty agent
-                maybeExisting = Dict.get agentStr model.stiListings
-
                 newListings =
-                    case maybeExisting of
-                        Just current ->
-                            Dict.insert agentStr (Dict.union kvlisting current) model.stiListings
-
-                        Nothing ->
-                            Dict.insert agentStr kvlisting model.stiListings
+                    Dict.insert agentKey kvlisting model.stiListings
             in
             ( { model | stiListings = newListings }, Cmd.none )
 
         GotAgentSTIListing (Err error) ->
             ( model, Cmd.none )
 
-        ApplySTIActions ->
+        ViewApplyModal ->
             ( { model | applyModalOpen = True }, Cmd.none )
 
-        FlushSTIActions ->
+        ViewFlushModal ->
             ( { model | flushModalOpen = True }, Cmd.none )
 
         CloseApplyModal ->
@@ -514,6 +542,62 @@ update msg model =
 
         CloseFlushModal ->
             ( { model | flushModalOpen = False }, Cmd.none )
+
+        ApplySTIActions ->
+            let
+                submitActions : (String, STIActions) -> Maybe (Cmd Msg)
+                submitActions (agentKey, stiActions) =
+                    case (Agents.fromKey agentKey) of
+                        Just agent ->
+                            Just (
+                                Api.stiActions (Session.cred model.session) agent model.contentType stiActions
+                                    |> Http.send GotAgentApplyResponse
+                            )
+                        Nothing ->
+                            Nothing
+
+                hasActions : String -> STIActions -> Bool
+                hasActions agentKey stiActions =
+                    not (List.isEmpty stiActions)
+
+                actionsToSend = Dict.filter hasActions model.agentStiActions
+                    |> Dict.toList
+            in
+                ( model
+                , Cmd.batch (List.filterMap submitActions actionsToSend)
+                )
+
+        GotAgentApplyResponse (Ok (agent, response)) ->
+            let
+                agentKey = Agents.key agent
+            in
+            case (Dict.get agentKey model.agentStiActions) of
+                Just stiActions ->
+                    let
+                        newAgentStiActions = Dict.insert agentKey [] model.agentStiActions
+                    in
+                    ( { model | agentStiActions = newAgentStiActions }
+                    , Cmd.batch
+                        [ Api.ctListing (Session.cred model.session) agent model.contentType
+                            |> Http.send GotAgentCTListing
+                        , Api.stiListing (Session.cred model.session) agent model.contentType
+                            |> Http.send GotAgentSTIListing
+                        ]
+                    )
+                Nothing ->
+                    ( model, Cmd.none )
+
+        GotAgentApplyResponse (Err error) ->
+            ( model, Cmd.none )
+
+        FlushSTIActions ->
+            ( model, Cmd.none )
+
+        GotAgentFlushResponse (Ok (agent, response)) ->
+            ( model, Cmd.none )
+
+        GotAgentFlushResponse (Err error) ->
+            ( model, Cmd.none )
 
         GotSession session ->
             ( { model | session = session }

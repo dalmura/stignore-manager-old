@@ -1,4 +1,4 @@
-port module Api exposing (Cred, addServerError, application, decodeErrors, delete, get, login, logout, post, put, register, settings, storeCredWith, username, viewerChanges, loadAgents, discover, ctListing, stiListing)
+port module Api exposing (Cred, addServerError, application, decodeErrors, delete, get, login, logout, post, put, register, settings, storeCredWith, username, viewerChanges, loadAgents, discover, ctListing, stiListing, stiActions)
 
 {-| This module is responsible for communicating to the stignore-agent API.
 
@@ -21,6 +21,7 @@ import Username exposing (Username)
 import ContentTypes exposing (ContentTypes, ContentType)
 import ContentTypes.Listing as CTListing
 import STIgnore.Listing as STIListing
+import STIActions exposing (STIActions)
 import Agents exposing (Agent)
 
 
@@ -290,6 +291,19 @@ stiListing maybeCred targetAgent contentType =
         (Decode.succeed targetAgent)
         (Decode.field "entries" STIListing.decoder)
             |> get (Endpoint.stignore targetAgent contentType) maybeCred
+
+stiActions : Maybe Cred -> Agent -> ContentType -> STIActions -> Http.Request (Agent, String)
+stiActions maybeCred targetAgent contentType actions =
+    let
+        payload = Encode.object [ ( "actions", STIActions.encoder actions ) ]
+        body = Http.jsonBody payload
+    in
+    Decode.map2
+        makeTuple
+        (Decode.succeed targetAgent)
+        (Decode.field "msg" string)
+            |> post (Endpoint.stignore targetAgent contentType) maybeCred body
+
 
 
 -- ERRORS
