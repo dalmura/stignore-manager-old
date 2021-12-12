@@ -1,4 +1,4 @@
-module Avatar exposing (Avatar, decoder, encode, src, toMaybeString)
+module Avatar exposing (Avatar, decoder, encoder, src, toMaybeString)
 
 import Asset
 import Html exposing (Attribute)
@@ -28,8 +28,8 @@ decoder =
 -- TRANSFORM
 
 
-encode : Avatar -> Value
-encode (Avatar maybeUrl) =
+encoder : Avatar -> Value
+encoder (Avatar maybeUrl) =
     case maybeUrl of
         Just url ->
             Encode.string url

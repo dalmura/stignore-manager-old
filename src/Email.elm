@@ -1,4 +1,4 @@
-module Email exposing (Email, decoder, encode, toString)
+module Email exposing (Email, decoder, encoder, toString)
 
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
@@ -35,8 +35,8 @@ toString (Email str) =
     str
 
 
-encode : Email -> Value
-encode (Email str) =
+encoder : Email -> Value
+encoder (Email str) =
     Encode.string str
 
 

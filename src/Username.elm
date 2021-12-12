@@ -1,4 +1,4 @@
-module Username exposing (Username, decoder, encode, toHtml, toString, urlParser)
+module Username exposing (Username, decoder, encoder, toHtml, toString, urlParser)
 
 import Html exposing (Html)
 import Json.Decode as Decode exposing (Decoder)
@@ -27,8 +27,8 @@ decoder =
 -- TRANSFORM
 
 
-encode : Username -> Value
-encode (Username username) =
+encoder : Username -> Value
+encoder (Username username) =
     Encode.string username
 
 

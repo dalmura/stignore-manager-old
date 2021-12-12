@@ -22,6 +22,7 @@ import ContentTypes exposing (ContentTypes, ContentType)
 import ContentTypes.Listing as CTListing
 import STIgnore.Listing as STIListing
 import STIActions exposing (STIActions)
+import FlushItems
 import Agents exposing (Agent)
 
 
@@ -108,9 +109,9 @@ storeCredWith (Cred uname token) avatar =
             Encode.object
                 [ ( "user"
                   , Encode.object
-                        [ ( "username", Username.encode uname )
+                        [ ( "username", Username.encoder uname )
                         , ( "token", Encode.string token )
-                        , ( "image", Avatar.encode avatar )
+                        , ( "image", Avatar.encoder avatar )
                         ]
                   )
                 ]
@@ -292,6 +293,7 @@ stiListing maybeCred targetAgent contentType =
         (Decode.field "entries" STIListing.decoder)
             |> get (Endpoint.stignore targetAgent contentType) maybeCred
 
+
 stiActions : Maybe Cred -> Agent -> ContentType -> STIActions -> Http.Request (Agent, String)
 stiActions maybeCred targetAgent contentType actions =
     let
@@ -303,6 +305,28 @@ stiActions maybeCred targetAgent contentType actions =
         (Decode.succeed targetAgent)
         (Decode.field "msg" string)
             |> post (Endpoint.stignore targetAgent contentType) maybeCred body
+
+
+getFlush : Maybe Cred -> Agent -> ContentType -> Http.Request (Agent, FlushItems.Listing)
+getFlush maybeCred targetAgent contentType =
+    Decode.map2
+        makeTuple
+        (Decode.succeed targetAgent)
+        (Decode.field "actions" FlushItems.decoder)
+            |> get (Endpoint.flush targetAgent contentType) maybeCred
+
+
+confirmFlush : Maybe Cred -> Agent -> ContentType -> FlushItems.Listing -> Http.Request (Agent, FlushItems.Listing)
+confirmFlush maybeCred targetAgent contentType flushItems =
+    let
+        payload = Encode.object [ ( "actions", FlushItems.encoder flushItems ) ]
+        body = Http.jsonBody payload
+    in
+    Decode.map2
+        makeTuple
+        (Decode.succeed targetAgent)
+        (Decode.field "actions" FlushItems.decoder)
+            |> post (Endpoint.flush targetAgent contentType) maybeCred body
 
 
 

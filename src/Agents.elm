@@ -1,4 +1,4 @@
-module Agents exposing (Agent(..), Agents, new, fromKey, name, host, pretty, key, decoder, encode)
+module Agents exposing (Agent(..), Agents, new, fromKey, name, host, pretty, key, decoder, encoder)
 
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (required)
@@ -79,8 +79,8 @@ decoder =
         |> Decode.map Agent
 
 
-encode : Agent -> Value
-encode (Agent info) =
+encoder : Agent -> Value
+encoder (Agent info) =
     Encode.object
         [ ( "name", Encode.string info.name )
         , ( "host", Encode.string info.host )

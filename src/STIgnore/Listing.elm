@@ -1,4 +1,4 @@
-module STIgnore.Listing exposing (Listing, KVListing, Item, new, raw, name, ignoreType, toTuple, fromTuple, pretty, decoder, encode, toString, toKV)
+module STIgnore.Listing exposing (Listing, KVListing, Item, new, raw, name, ignoreType, toTuple, fromTuple, pretty, decoder, encoder, toString, toKV)
 
 --import ContentTypes exposing (ContentType)
 
@@ -103,6 +103,6 @@ itemEncoder item =
         , ( "ignore_type", Encode.string item.ignoreType )
         ]
 
-encode : Listing -> Value
-encode listing =
+encoder : Listing -> Value
+encoder listing =
     Encode.list itemEncoder listing

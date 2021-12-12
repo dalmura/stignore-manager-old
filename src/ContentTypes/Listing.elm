@@ -1,4 +1,4 @@
-module ContentTypes.Listing exposing (Listing, KVListing, Item, new, name, size, toTuple, fromTuple, pretty, decoder, encode, toString, toKV)
+module ContentTypes.Listing exposing (Listing, KVListing, Item, new, name, size, toTuple, fromTuple, pretty, decoder, encoder, toString, toKV)
 
 import ContentTypes exposing (ContentType)
 
@@ -93,6 +93,6 @@ itemEncoder item =
         , ( "size_megabytes", Encode.float item.size_megabytes )
         ]
 
-encode : Listing -> Value
-encode listing =
+encoder : Listing -> Value
+encoder listing =
     Encode.list itemEncoder listing

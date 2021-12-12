@@ -1,4 +1,4 @@
-module ContentTypes exposing (ContentType(..), ContentTypes, new, fromSlug, name, pretty, decoder, encode, toString, slug)
+module ContentTypes exposing (ContentType(..), ContentTypes, new, fromSlug, name, pretty, decoder, encoder, toString, slug)
 
 import Http
 
@@ -69,8 +69,8 @@ decoder =
         |> Decode.map ContentType
 
 
-encode : ContentType -> Value
-encode (ContentType info) =
+encoder : ContentType -> Value
+encoder (ContentType info) =
     Encode.object
         [ ( "name", Encode.string info.name )
         ]
