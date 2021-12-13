@@ -20,6 +20,7 @@ import ContentTypes.Slug exposing (Slug)
 import ContentTypes.Listing as CTListing
 import STIgnore.Listing as STIListing
 import STIActions exposing (STIActionClass(..), STIActionType(..), STIAction, STIActions, AgentSTIActions)
+import FlushItems
 import Modal
 
 import Dict exposing (Dict)
@@ -45,6 +46,7 @@ type alias Model =
     , contentType : ContentType
     , ctListings : Dict String CTListing.KVListing
     , stiListings : Dict String STIListing.KVListing
+    , flushListings : Dict String FlushItems.Listing
     , nextStiId : Int
     , agentStiActions : AgentSTIActions
     , applyModalOpen : Bool
@@ -70,11 +72,17 @@ init session slug =
         agentSTIListing ctype agent =
             Api.stiListing (Session.cred session) agent ctype
                 |> Http.send GotAgentSTIListing
+
+        agentFlushListing : ContentType -> Agent -> Cmd Msg
+        agentFlushListing ctype agent =
+            Api.getFlush (Session.cred session) agent ctype
+                |> Http.send GotAgentFlushListing
     in
     ( { session = session
       , contentType = contentType
       , ctListings = Dict.empty
       , stiListings = Dict.empty
+      , flushListings = Dict.empty
       , nextStiId = 1
       , agentStiActions = Dict.empty
       , applyModalOpen = False
@@ -84,6 +92,8 @@ init session slug =
         (List.map (agentCTListing contentType) agents)
         ++
         (List.map (agentSTIListing contentType) agents)
+        ++
+        (List.map (agentFlushListing contentType) agents)
       )
     )
 
@@ -113,7 +123,7 @@ view model =
                 [ div [ class "container page" ]
                     [ div [ class "row" ]
                         [ div [ class "col-md-12" ] <|
-                            summaryAndActionsTable model.contentType model.agentStiActions
+                            summaryAndActionsTable model.contentType model.agentStiActions model.flushListings
                         ]
                     , div [ class "row" ]
                         [ div [ class "col-md-12" ] <|
@@ -142,10 +152,13 @@ renderApplyModal model =
             in
                 case (maybeAgent, maybeStiActions) of
                     (Just agent, Just stiActions) ->
-                        div []
-                            [ h3 [] [ text (Agents.name agent) ]
-                            , pre [] [ text (Encode.encode 2 (STIActions.encoder stiActions)) ]
-                            ]
+                        if not (List.isEmpty stiActions) then
+                            div []
+                                [ h3 [] [ text (Agents.name agent) ]
+                                , pre [] [ text (Encode.encode 2 (STIActions.encoder stiActions)) ]
+                                ]
+                        else
+                            div [] []
                     (_, _) -> 
                         div [] []
 
@@ -160,7 +173,31 @@ renderApplyModal model =
 renderFlushModal : Model -> Html Msg
 renderFlushModal model =
     let
-        modalBody = [div [] [ text "We're going to flush:" ]]
+        agentKeys = Dict.keys model.flushListings
+
+        agentFlushItemsToTable : Dict String FlushItems.Listing -> String -> Html msg
+        agentFlushItemsToTable flushListings agentKey =
+            let
+                maybeAgent = Agents.fromKey agentKey
+                maybeFlushListing = Dict.get agentKey flushListings
+            in
+                case (maybeAgent, maybeFlushListing) of
+                    (Just agent, Just flushListing) ->
+                        if not (List.isEmpty flushListing) then
+                            div []
+                                [ h3 [] [ text (Agents.name agent) ]
+                                , pre [] [ text (Encode.encode 2 (FlushItems.encoder flushListing)) ]
+                                ]
+                        else
+                            div [] []
+                    (_, _) ->
+                        div [] []
+
+        modalBody =
+            [ div [] [ text "We're going to flush:" ]
+            , div [] (List.map (agentFlushItemsToTable model.flushListings) agentKeys)
+            , button [ class "btn btn-sm btn-primary", onClick FlushItems ] [ text "Flush Changes" ]
+            ]
     in
     Modal.new "flush-modal" "Flush Changes" modalBody CloseFlushModal
 
@@ -219,27 +256,30 @@ stiActionsToTable agentKey stiActions =
                 div [] [ text ("Unable to parse agent: " ++ agentKey) ]
 
 
-summaryAndActionsTable : ContentType -> AgentSTIActions -> List (Html Msg)
-summaryAndActionsTable ctype agentStiActions =
+summaryAndActionsTable : ContentType -> AgentSTIActions -> Dict String FlushItems.Listing -> List (Html Msg)
+summaryAndActionsTable ctype agentStiActions flushListings =
     let
-        noStiActions =
+        hasStiActions =
             if Dict.isEmpty agentStiActions then
-                True
-            else if List.isEmpty (List.concat (Dict.values agentStiActions)) then
-                True
-            else
                 False
+            else if List.isEmpty (List.concat (Dict.values agentStiActions)) then
+                False
+            else
+                True
+
+        hasFlushItems =
+            if Dict.isEmpty flushListings then
+                False
+            else if List.isEmpty (List.concat (Dict.values flushListings)) then
+                False
+            else
+                True
 
         actionsTable =
-            case noStiActions of
-                True ->
-                    [ h4 []
-                        [ button [ class "btn btn-sm btn-primary", onClick ViewFlushModal ] [ text "Flush Changes" ]
-                        ]
-                    ]
-                False ->
+            case (hasStiActions, hasFlushItems) of
+                (True, True) ->
                     (
-                        [ h4 []
+                        [ h5 []
                             [ text "Pending Actions"
                             , text " "
                             , button [ class "btn btn-sm btn-primary", onClick ViewApplyModal ] [ text "Apply Changes" ]
@@ -251,6 +291,28 @@ summaryAndActionsTable ctype agentStiActions =
                             |> Dict.values)
                         ++ [ br [] [] ]
                     )
+
+                (True, False) ->
+                    (
+                        [ h5 []
+                            [ text "Pending Actions"
+                            , text " "
+                            , button [ class "btn btn-sm btn-primary", onClick ViewApplyModal ] [ text "Apply Changes" ]
+                            ]
+                        ]
+                        ++ (Dict.map stiActionsToTable agentStiActions
+                            |> Dict.values)
+                        ++ [ br [] [] ]
+                    )
+
+                (False, True) ->
+                    [ h5 []
+                        [ button [ class "btn btn-sm btn-primary", onClick ViewFlushModal ] [ text "Flush Changes" ]
+                        ]
+                    ]
+
+                (False, False) ->
+                    []
     in
         (
             [ h2 [] [ text (String.Extra.toTitleCase (ContentTypes.name ctype)) ]
@@ -285,7 +347,7 @@ agentItemStatusToCell stiLookup itemName targetSize (agent, itemStatus) =
                         ] [ text "yes" ]
                     ]
             else if (size == targetSize && existsInStiListing) then
-                td [ class "ctlisting-yes" ]
+                td [ class "ctlisting-ignored" ]
                     [ a [ onClick (AddSTIAction agent Remove Ignore itemName)
                         , href ""
                         , class "tag-pill tag-default"
@@ -422,13 +484,14 @@ type Msg
     | RemoveSTIAction Agent Int
     | GotAgentCTListing (Result Http.Error (Agent, CTListing.Listing))
     | GotAgentSTIListing (Result Http.Error (Agent, STIListing.Listing))
+    | GotAgentFlushListing (Result Http.Error (Agent, FlushItems.Listing))
     | ViewApplyModal
     | ViewFlushModal
     | CloseApplyModal
     | CloseFlushModal
     | ApplySTIActions
     | GotAgentApplyResponse (Result Http.Error (Agent, String))
-    | FlushSTIActions
+    | FlushItems
     | GotAgentFlushResponse (Result Http.Error (Agent, String))
     | GotSession Session
 
@@ -531,6 +594,18 @@ update msg model =
         GotAgentSTIListing (Err error) ->
             ( model, Cmd.none )
 
+        GotAgentFlushListing (Ok (agent, listing)) ->
+            let
+                agentKey = Agents.key agent
+
+                newListings =
+                    Dict.insert agentKey listing model.flushListings
+            in
+            ( { model | flushListings = newListings }, Cmd.none )
+
+        GotAgentFlushListing (Err error) ->
+            ( model, Cmd.none )
+
         ViewApplyModal ->
             ( { model | applyModalOpen = True }, Cmd.none )
 
@@ -582,6 +657,8 @@ update msg model =
                             |> Http.send GotAgentCTListing
                         , Api.stiListing (Session.cred model.session) agent model.contentType
                             |> Http.send GotAgentSTIListing
+                        , Api.getFlush (Session.cred model.session) agent model.contentType
+                            |> Http.send GotAgentFlushListing
                         ]
                     )
                 Nothing ->
@@ -590,7 +667,7 @@ update msg model =
         GotAgentApplyResponse (Err error) ->
             ( model, Cmd.none )
 
-        FlushSTIActions ->
+        FlushItems ->
             ( model, Cmd.none )
 
         GotAgentFlushResponse (Ok (agent, response)) ->

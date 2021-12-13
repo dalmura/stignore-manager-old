@@ -1,4 +1,4 @@
-port module Api exposing (Cred, addServerError, application, decodeErrors, delete, get, login, logout, post, put, register, settings, storeCredWith, username, viewerChanges, loadAgents, discover, ctListing, stiListing, stiActions)
+port module Api exposing (Cred, addServerError, application, decodeErrors, delete, get, login, logout, post, put, register, settings, storeCredWith, username, viewerChanges, loadAgents, discover, ctListing, stiListing, stiActions, getFlush, confirmFlush)
 
 {-| This module is responsible for communicating to the stignore-agent API.
 
