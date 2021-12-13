@@ -78,6 +78,15 @@ init session =
         agentDiscover agent =
             Api.discover (Session.cred session) agent
                 |> Http.send GotAgentDiscovery
+
+        noAgentsInSession = List.isEmpty (Session.agents session)
+
+        maybeLoadAgents =
+            if noAgentsInSession then
+                [Api.loadAgents (Session.cred session)
+                    |> Http.send LoadedAgents]
+            else
+                []
     in
     ( { session = session
       , timeZone = Time.utc
@@ -89,14 +98,11 @@ init session =
       }
     , Cmd.batch
         (
-            [ fetchFeed session feedTab 1
-                |> Task.attempt CompletedFeedLoad
-            , Tag.list
-                |> Http.send CompletedTagsLoad
-            , Task.perform GotTimeZone Time.here
+            [ Task.perform GotTimeZone Time.here
             , Task.perform (\_ -> PassedSlowLoadThreshold) Loading.slowThreshold
             ]
             ++ (List.map agentDiscover agents)
+            ++ maybeLoadAgents
         )
     )
 
@@ -269,6 +275,7 @@ type Msg
     | GotFeedMsg Feed.Msg
     | GotSession Session
     | PassedSlowLoadThreshold
+    | LoadedAgents (Result Http.Error (List Agent))
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -377,6 +384,23 @@ update msg model =
                             other
             in
             ( { model | feed = feed, tags = tags }, Cmd.none )
+
+        LoadedAgents (Ok agents) ->
+            let
+                newSession = (List.foldl Session.addAgent model.session agents)
+
+                agentDiscover : Agent -> Cmd Msg
+                agentDiscover agent =
+                    Api.discover (Session.cred newSession) agent
+                        |> Http.send GotAgentDiscovery
+
+            in
+            ( { model | session = newSession }
+            , Cmd.batch (List.map agentDiscover agents)
+            )
+
+        LoadedAgents (Err error) ->
+            ( model, Cmd.none )
 
 
 
