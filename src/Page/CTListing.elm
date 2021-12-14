@@ -492,7 +492,7 @@ type Msg
     | ApplySTIActions
     | GotAgentApplyResponse (Result Http.Error (Agent, String))
     | FlushItems
-    | GotAgentFlushResponse (Result Http.Error (Agent, String))
+    | GotAgentFlushResponse (Result Http.Error (Agent, FlushItems.Listing))
     | GotSession Session
 
 
@@ -668,10 +668,50 @@ update msg model =
             ( model, Cmd.none )
 
         FlushItems ->
-            ( model, Cmd.none )
+            let
+                submitActions : (String, FlushItems.Listing) -> Maybe (Cmd Msg)
+                submitActions (agentKey, flushListing) =
+                    case (Agents.fromKey agentKey) of
+                        Just agent ->
+                            Just (
+                                Api.confirmFlush (Session.cred model.session) agent model.contentType flushListing
+                                    |> Http.send GotAgentFlushResponse
+                            )
+                        Nothing ->
+                            Nothing
 
-        GotAgentFlushResponse (Ok (agent, response)) ->
-            ( model, Cmd.none )
+                hasItems : String -> FlushItems.Listing -> Bool
+                hasItems agentKey flushListing =
+                    not (List.isEmpty flushListing)
+
+                actionsToSend = Dict.filter hasItems model.flushListings
+                    |> Dict.toList
+            in
+                ( model
+                , Cmd.batch (List.filterMap submitActions actionsToSend)
+                )
+
+        GotAgentFlushResponse (Ok (agent, listing)) ->
+            let
+                agentKey = Agents.key agent
+            in
+            case (Dict.get agentKey model.flushListings) of
+                Just flushListing ->
+                    let
+                        newFlushListings = Dict.insert agentKey [] model.flushListings
+                    in
+                    ( { model | flushListings = newFlushListings }
+                    , Cmd.batch
+                        [ Api.ctListing (Session.cred model.session) agent model.contentType
+                            |> Http.send GotAgentCTListing
+                        , Api.stiListing (Session.cred model.session) agent model.contentType
+                            |> Http.send GotAgentSTIListing
+                        , Api.getFlush (Session.cred model.session) agent model.contentType
+                            |> Http.send GotAgentFlushListing
+                        ]
+                    )
+                Nothing ->
+                    ( model, Cmd.none )
 
         GotAgentFlushResponse (Err error) ->
             ( model, Cmd.none )
