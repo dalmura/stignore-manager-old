@@ -564,17 +564,11 @@ update msg model =
 
         GotAgentCTListing (Ok (agent, listing)) ->
             let
+                agentKey = Agents.key agent
                 kvlisting = CTListing.toKV listing
 
-                agentKey = Agents.key agent
-
                 newListings =
-                    case (Dict.get agentKey model.ctListings) of
-                        Just current ->
-                            Dict.insert agentKey (Dict.union kvlisting current) model.ctListings
-
-                        Nothing ->
-                            Dict.insert agentKey kvlisting model.ctListings
+                    Dict.insert agentKey kvlisting model.ctListings
             in
             ( { model | ctListings = newListings }, Cmd.none )
 
