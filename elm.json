@@ -1,6 +1,6 @@
 {
     "type": "application",
-    "version": "v0.0.15",
+    "version": "v0.0.16",
     "source-directories": [
         "src"
     ],
