@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-20.04
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Extract version from elm.json
         uses: sergeysova/jq-action@v2
@@ -51,7 +51,7 @@ jobs:
     if: ${{ needs.release.outputs.tag_check == 'success' }}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
